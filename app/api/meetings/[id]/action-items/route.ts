@@ -1,3 +1,4 @@
 import { NextResponse } from "next/server";
-import { getMeeting } from "@/lib/data";
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const meeting = getMeeting(id); return NextResponse.json({ actionItems: meeting?.actionItems ?? [] }); }
+import { getMeetingById, setActionCompleted } from "@/lib/db/queries";
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const meeting = await getMeetingById(id); return NextResponse.json({ actionItems: meeting?.actionItems ?? [] }); }
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) { const { id: meetingId } = await params; const body = await request.json().catch(() => null); if (!body?.id || typeof body.completed !== "boolean") return NextResponse.json({ error: "Invalid payload" }, { status: 400 }); const actionItem = await setActionCompleted(meetingId, body.id, body.completed); return actionItem ? NextResponse.json({ actionItem }) : NextResponse.json({ error: "Not found" }, { status: 404 }); }
