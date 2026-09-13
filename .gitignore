@@ -4,3 +4,10 @@ node_modules/
 out/
 .env.local
 .env*.local
+desktop-agent/dist/
+desktop-agent/node_modules/
+desktop-agent/.cache/
+desktop-agent/.electron-builder/
+desktop-agent/*.webm
+desktop-agent/recordings/
+*.tmp
