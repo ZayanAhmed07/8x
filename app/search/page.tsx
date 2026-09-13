@@ -1,3 +1,10 @@
 import Link from "next/link";
 import { searchDatabase } from "@/lib/db/queries";
-export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) { const { q = "" } = await searchParams; const results = await searchDatabase(q); return <><div className="page-head"><div><p className="eyebrow">Global search</p><h1>Search</h1><p className="muted">Search titles, transcript moments, action items, and people.</p></div></div><form className="toolbar"><input className="input" name="q" defaultValue={q} placeholder="Try pricing, recap, Maya, or owner"/><button className="button primary">Search</button></form><div className="grid" style={{marginTop:18}}>{q && results.length === 0 ? <div className="card">No results. Try a speaker name or transcript phrase.</div> : results.map((r) => <Link className="card" href={r.href} key={r.href + r.title}><span className="badge">{r.type}</span><h3>{r.title}</h3></Link>)}</div></>; }
+import { requireUser } from "@/lib/auth";
+
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const user = await requireUser();
+  const { q = "" } = await searchParams;
+  const results = await searchDatabase(q, { userId: user.id });
+  return <><div className="page-head"><div><p className="eyebrow">Global search</p><h1>Search</h1><p className="muted">Search titles, transcript moments, action items, and people.</p></div></div><form className="toolbar"><input className="input" name="q" defaultValue={q} placeholder="Try pricing, recap, Maya, or owner"/><button className="button primary">Search</button></form><div className="grid" style={{marginTop:18}}>{q && results.length === 0 ? <div className="card">No results. Try a speaker name or transcript phrase.</div> : results.map((r) => <Link className="card" href={r.href} key={r.href + r.title}><span className="badge">{r.type}</span><h3>{r.title}</h3></Link>)}</div></>;
+}

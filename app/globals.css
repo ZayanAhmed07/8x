@@ -42,3 +42,12 @@ h1 { font-size:42px; line-height:1; margin:4px 0 8px; }
 .skeleton { min-height:90px; border-radius:8px; background:linear-gradient(90deg,#eee5da,#fffaf1,#eee5da); background-size:200% 100%; animation:shimmer 1.2s infinite; }
 @keyframes shimmer { to { background-position:-200% 0; } }
 @media (max-width: 860px) { .sidebar { position:static; width:auto; border-right:0; border-bottom:1px solid var(--line); } main { padding:20px; } .workspace,.board { grid-template-columns:1fr; } h1 { font-size:34px; } }
+
+.auth-shell { min-height:calc(100vh - 64px); display:grid; place-items:center; }
+.auth-panel { width:min(100%,480px); background:#fffdfa; border:1px solid var(--line); border-radius:8px; padding:24px; box-shadow:0 14px 40px rgba(31,26,23,.06); }
+.auth-form .input { width:100%; }
+.account-box { position:absolute; left:18px; right:18px; bottom:24px; display:grid; gap:10px; }
+.account-box .muted { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+
+.meeting-row { display:flex; justify-content:space-between; gap:12px; align-items:center; border-top:1px solid var(--line); padding-top:12px; }
+@media (max-width: 860px) { .meeting-row { display:grid; } }
