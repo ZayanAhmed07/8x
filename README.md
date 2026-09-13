@@ -27,3 +27,17 @@ Recording bot, calendar OAuth, live Zoom/Meet/Teams capture, email notifications
 ## Next
 
 Connect `scripts/seed.ts` to Drizzle inserts, add persistent action toggles/highlight creation, and deploy to Vercel once credentials are available.
+
+## Desktop Agent
+
+The desktop agent is a separate Electron app in `desktop-agent/`. It manually captures a user-selected screen or window, system audio, and microphone audio after pressing Record, keeps the recording in memory while recording, and uploads the WebM only after pressing Stop. It does not auto-join calls, auto-start, run hidden recording, or replace the simulated meeting integrations in Settings.
+
+Run it locally:
+
+```bash
+cd desktop-agent
+npm install
+npm start
+```
+
+Tier reached: Tier 1. Uploaded recordings create a ready meeting with a playable video, a "You" speaker, a placeholder transcript segment, and a general summary. Live transcription remains intentionally unimplemented.

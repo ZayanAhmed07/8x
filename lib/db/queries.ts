@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import type { ActionItem, Chapter, Highlight, Meeting, Speaker, Summary, SummaryTemplate, TranscriptSegment } from "@/lib/data";
 import { meetings as fallbackMeetings } from "@/lib/data";
 import { getDb } from "@/lib/db/client";
@@ -26,25 +26,30 @@ function serializeAction(row: typeof schema.actionItems.$inferSelect): ActionIte
   return { id: row.id, meetingId: row.meetingId, text: row.text, owner: row.owner, dueDate: row.dueDate.toISOString().slice(0, 10), completed, status: actionStatus(completed), sourceSegmentId: row.sourceSegmentId ?? undefined };
 }
 
-export async function listMeetings(): Promise<Meeting[]> {
+export async function listMeetings(userId?: string): Promise<Meeting[]> {
   try {
     const db = getDb();
-    const rows = await db.select().from(schema.meetings).orderBy(desc(schema.meetings.date));
-    const speakerCounts = await db.select({ meetingId: schema.speakers.meetingId, count: count() }).from(schema.speakers).groupBy(schema.speakers.meetingId);
-    const summaryRows = await db.select({ meetingId: schema.summaries.meetingId, contentJson: schema.summaries.contentJson }).from(schema.summaries).where(eq(schema.summaries.template, "general"));
+    const rows = userId
+      ? await db.select().from(schema.meetings).where(eq(schema.meetings.userId, userId)).orderBy(desc(schema.meetings.date))
+      : await db.select().from(schema.meetings).orderBy(desc(schema.meetings.date));
+    const meetingIds = rows.map((row) => row.id);
+    const speakerCounts = meetingIds.length > 0 ? await db.select({ meetingId: schema.speakers.meetingId, count: count() }).from(schema.speakers).groupBy(schema.speakers.meetingId) : [];
+    const summaryRows = meetingIds.length > 0 ? await db.select({ meetingId: schema.summaries.meetingId, contentJson: schema.summaries.contentJson }).from(schema.summaries).where(eq(schema.summaries.template, "general")) : [];
     return rows.map((row) => {
       const summary = summaryRows.find((item) => item.meetingId === row.id)?.contentJson as Summary["content"] | undefined;
       return { ...serializeMeeting(row), speakers: Array.from({ length: speakerCounts.find((item) => item.meetingId === row.id)?.count ?? 0 }, (_, i) => ({ id: `${row.id}-count-${i}`, meetingId: row.id, name: "", avatarUrl: "", color: "" })), chapters: [], transcript: [], summaries: [{ template: "general", content: summary ?? { headline: "Open this meeting to review the generated workspace.", bullets: [], decisions: [], keyQuotes: [] } }], actionItems: [], highlights: [] };
     });
   } catch {
-    return fallbackMeetings;
+    return userId ? [] : fallbackMeetings;
   }
 }
 
-export async function getMeetingById(id: string): Promise<Meeting | undefined> {
+export async function getMeetingById(id: string, userId?: string): Promise<Meeting | undefined> {
   try {
     const db = getDb();
-    const [meeting] = await db.select().from(schema.meetings).where(eq(schema.meetings.id, id));
+    const [meeting] = userId
+      ? await db.select().from(schema.meetings).where(and(eq(schema.meetings.id, id), eq(schema.meetings.userId, userId)))
+      : await db.select().from(schema.meetings).where(eq(schema.meetings.id, id));
     if (!meeting) return undefined;
     const [speakers, chapters, transcript, summaries, actionItems, highlights] = await Promise.all([
       db.select().from(schema.speakers).where(eq(schema.speakers.meetingId, id)),
@@ -64,7 +69,7 @@ export async function getMeetingById(id: string): Promise<Meeting | undefined> {
       highlights: highlights.map((highlight): Highlight => ({ id: highlight.id, meetingId: highlight.meetingId, startMs: highlight.startMs, endMs: highlight.endMs, title: highlight.title, shareToken: highlight.shareToken }))
     };
   } catch {
-    return fallbackMeetings.find((meeting) => meeting.id === id);
+    return userId ? undefined : fallbackMeetings.find((meeting) => meeting.id === id);
   }
 }
 
@@ -79,28 +84,32 @@ export async function getSharedMeetingByToken(token: string): Promise<Meeting | 
   }
 }
 
-export async function listActionBoardItems() {
+export async function listActionBoardItems(userId?: string) {
   try {
     const db = getDb();
-    const rows = await db.select({ id: schema.actionItems.id, meetingId: schema.actionItems.meetingId, text: schema.actionItems.text, owner: schema.actionItems.owner, dueDate: schema.actionItems.dueDate, completed: schema.actionItems.completed, sourceSegmentId: schema.actionItems.sourceSegmentId, meeting: schema.meetings.title }).from(schema.actionItems).innerJoin(schema.meetings, eq(schema.actionItems.meetingId, schema.meetings.id));
+    const base = db.select({ id: schema.actionItems.id, meetingId: schema.actionItems.meetingId, text: schema.actionItems.text, owner: schema.actionItems.owner, dueDate: schema.actionItems.dueDate, completed: schema.actionItems.completed, sourceSegmentId: schema.actionItems.sourceSegmentId, meeting: schema.meetings.title }).from(schema.actionItems).innerJoin(schema.meetings, eq(schema.actionItems.meetingId, schema.meetings.id));
+    const rows = userId ? await base.where(eq(schema.meetings.userId, userId)) : await base;
     return rows.map((row) => ({ ...serializeAction(row), meeting: row.meeting }));
   } catch {
-    return fallbackMeetings.flatMap((meeting) => meeting.actionItems.map((item) => ({ ...item, meeting: meeting.title })));
+    return userId ? [] : fallbackMeetings.flatMap((meeting) => meeting.actionItems.map((item) => ({ ...item, meeting: meeting.title })));
   }
 }
 
-export async function searchDatabase(query: string, options: { fallback?: boolean } = {}) {
+export async function searchDatabase(query: string, options: { fallback?: boolean; userId?: string } = {}) {
   const q = query.trim();
   const shouldFallback = options.fallback ?? true;
   if (!q) return [];
   try {
     const db = getDb();
     const like = `%${q}%`;
-    const meetingRows = await db.select({ type: schema.meetings.status, title: schema.meetings.title, id: schema.meetings.id }).from(schema.meetings).where(ilike(schema.meetings.title, like)).limit(8);
-    const transcriptRows = await db.select({ text: schema.transcriptSegments.text, meetingId: schema.transcriptSegments.meetingId, startMs: schema.transcriptSegments.startMs }).from(schema.transcriptSegments).where(ilike(schema.transcriptSegments.text, like)).limit(12);
-    const chapterRows = await db.select({ title: schema.chapters.title, meetingId: schema.chapters.meetingId, startMs: schema.chapters.startMs }).from(schema.chapters).where(ilike(schema.chapters.title, like)).limit(8);
-    const actionRows = await db.select({ text: schema.actionItems.text, meetingId: schema.actionItems.meetingId, id: schema.actionItems.id }).from(schema.actionItems).where(or(ilike(schema.actionItems.text, like), ilike(schema.actionItems.owner, like))).limit(12);
+    const owner = options.userId ? eq(schema.meetings.userId, options.userId) : undefined;
+    const meetingRows = await db.select({ type: schema.meetings.status, title: schema.meetings.title, id: schema.meetings.id }).from(schema.meetings).where(owner ? and(owner, ilike(schema.meetings.title, like)) : ilike(schema.meetings.title, like)).limit(8);
+    const transcriptRows = await db.select({ text: schema.transcriptSegments.text, meetingId: schema.transcriptSegments.meetingId, startMs: schema.transcriptSegments.startMs }).from(schema.transcriptSegments).innerJoin(schema.meetings, eq(schema.transcriptSegments.meetingId, schema.meetings.id)).where(owner ? and(owner, ilike(schema.transcriptSegments.text, like)) : ilike(schema.transcriptSegments.text, like)).limit(12);
+    const chapterRows = await db.select({ title: schema.chapters.title, meetingId: schema.chapters.meetingId, startMs: schema.chapters.startMs }).from(schema.chapters).innerJoin(schema.meetings, eq(schema.chapters.meetingId, schema.meetings.id)).where(owner ? and(owner, ilike(schema.chapters.title, like)) : ilike(schema.chapters.title, like)).limit(8);
+    const actionRows = await db.select({ text: schema.actionItems.text, meetingId: schema.actionItems.meetingId, id: schema.actionItems.id }).from(schema.actionItems).innerJoin(schema.meetings, eq(schema.actionItems.meetingId, schema.meetings.id)).where(owner ? and(owner, or(ilike(schema.actionItems.text, like), ilike(schema.actionItems.owner, like))) : or(ilike(schema.actionItems.text, like), ilike(schema.actionItems.owner, like))).limit(12);
+    const { searchEverything } = await import("@/lib/data");
     return [
+      ...searchEverything(q),
       ...meetingRows.map((row) => ({ type: "Meeting", title: row.title, href: `/meetings/${row.id}` })),
       ...transcriptRows.map((row) => ({ type: "Transcript", title: row.text, href: `/meetings/${row.meetingId}?t=${row.startMs}` })),
       ...chapterRows.map((row) => ({ type: "Chapter", title: row.title, href: `/meetings/${row.meetingId}?t=${row.startMs}` })),
@@ -126,5 +135,3 @@ export async function createHighlight(meetingId: string, startMs: number, endMs:
   const [row] = await db.insert(schema.highlights).values({ id, meetingId, startMs, endMs, title, shareToken }).returning();
   return { id: row.id, meetingId: row.meetingId, startMs: row.startMs, endMs: row.endMs, title: row.title, shareToken: row.shareToken } satisfies Highlight;
 }
-
-

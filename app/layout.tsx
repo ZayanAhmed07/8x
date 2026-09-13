@@ -2,7 +2,8 @@ import "./globals.css";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CommandPalette } from "@/components/command-palette/CommandPalette";
-import { CalendarDays, ListChecks, Search, Settings, Upload } from "lucide-react";
+import { getCurrentUser } from "@/lib/auth";
+import { CalendarDays, ListChecks, LogIn, LogOut, Search, Settings, Upload } from "lucide-react";
 
 export const metadata: Metadata = { title: "Fathom Workspace", description: "Post-meeting workspace demo" };
 
@@ -14,6 +15,7 @@ const nav = [
   ["Settings", "/settings", Settings]
 ] as const;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body><CommandPalette /><aside className="sidebar"><Link href="/meetings" className="brand">Fathom Workspace</Link><nav>{nav.map(([label, href, Icon]) => <Link key={href} href={href}><Icon size={17}/><span>{label}</span></Link>)}</nav></aside><main>{children}</main></body></html>;
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  return <html lang="en"><body><CommandPalette /><aside className="sidebar"><Link href={user ? "/meetings" : "/auth"} className="brand">Fathom Workspace</Link><nav>{nav.map(([label, href, Icon]) => <Link key={href} href={href}><Icon size={17}/><span>{label}</span></Link>)}</nav><div className="account-box">{user ? <><p className="muted">{user.email}</p><form action="/auth/sign-out" method="post"><button className="button" type="submit"><LogOut size={17}/>Sign out</button></form></> : <Link className="button primary" href="/auth"><LogIn size={17}/>Sign in</Link>}</div></aside><main>{children}</main></body></html>;
 }

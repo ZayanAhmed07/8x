@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { askSeeded } from "@/lib/ai/ask";
+import { getCurrentUser } from "@/lib/auth";
 import { searchDatabase } from "@/lib/db/queries";
 
 function citationFromHref(href: string, title: string) {
@@ -9,11 +10,13 @@ function citationFromHref(href: string, title: string) {
 }
 
 export async function POST(request: Request) {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
   const body = await request.json().catch(() => ({ question: "" }));
   const question = String(body.question ?? "").trim();
 
   try {
-    const results = await searchDatabase(question, { fallback: false });
+    const results = await searchDatabase(question, { fallback: false, userId: user.id });
     if (results.length === 0) {
       return NextResponse.json({ answer: "No matches found - try a different phrase.", citations: [] });
     }

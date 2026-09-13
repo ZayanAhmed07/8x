@@ -1,0 +1,59 @@
+{
+  "name": "fathom-desktop-agent",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "description": "Manual desktop capture agent for the Fathom workspace clone.",
+  "author": "Fathom Workspace Clone",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis",
+    "pack": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "dev.fathomclone.capture",
+    "productName": "Fathom Capture",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "files": [
+      "main.js",
+      "preload.js",
+      "recorder-window.html",
+      "recorder-window.js",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "protocols": [
+      {
+        "name": "Fathom Capture Link",
+        "schemes": [
+          "fathom-clone"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Fathom Capture"
+    }
+  },
+  "devDependencies": {
+    "electron": "latest",
+    "electron-builder": "latest"
+  }
+}
