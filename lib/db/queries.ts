@@ -31,7 +31,11 @@ export async function listMeetings(): Promise<Meeting[]> {
     const db = getDb();
     const rows = await db.select().from(schema.meetings).orderBy(desc(schema.meetings.date));
     const speakerCounts = await db.select({ meetingId: schema.speakers.meetingId, count: count() }).from(schema.speakers).groupBy(schema.speakers.meetingId);
-    return rows.map((row) => ({ ...serializeMeeting(row), speakers: Array.from({ length: speakerCounts.find((item) => item.meetingId === row.id)?.count ?? 0 }, (_, i) => ({ id: `${row.id}-count-${i}`, meetingId: row.id, name: "", avatarUrl: "", color: "" })), chapters: [], transcript: [], summaries: [{ template: "general", content: { headline: "Open this meeting to review the generated workspace.", bullets: [], decisions: [], keyQuotes: [] } }], actionItems: [], highlights: [] }));
+    const summaryRows = await db.select({ meetingId: schema.summaries.meetingId, contentJson: schema.summaries.contentJson }).from(schema.summaries).where(eq(schema.summaries.template, "general"));
+    return rows.map((row) => {
+      const summary = summaryRows.find((item) => item.meetingId === row.id)?.contentJson as Summary["content"] | undefined;
+      return { ...serializeMeeting(row), speakers: Array.from({ length: speakerCounts.find((item) => item.meetingId === row.id)?.count ?? 0 }, (_, i) => ({ id: `${row.id}-count-${i}`, meetingId: row.id, name: "", avatarUrl: "", color: "" })), chapters: [], transcript: [], summaries: [{ template: "general", content: summary ?? { headline: "Open this meeting to review the generated workspace.", bullets: [], decisions: [], keyQuotes: [] } }], actionItems: [], highlights: [] };
+    });
   } catch {
     return fallbackMeetings;
   }
@@ -85,21 +89,25 @@ export async function listActionBoardItems() {
   }
 }
 
-export async function searchDatabase(query: string) {
+export async function searchDatabase(query: string, options: { fallback?: boolean } = {}) {
   const q = query.trim();
+  const shouldFallback = options.fallback ?? true;
   if (!q) return [];
   try {
     const db = getDb();
     const like = `%${q}%`;
     const meetingRows = await db.select({ type: schema.meetings.status, title: schema.meetings.title, id: schema.meetings.id }).from(schema.meetings).where(ilike(schema.meetings.title, like)).limit(8);
     const transcriptRows = await db.select({ text: schema.transcriptSegments.text, meetingId: schema.transcriptSegments.meetingId, startMs: schema.transcriptSegments.startMs }).from(schema.transcriptSegments).where(ilike(schema.transcriptSegments.text, like)).limit(12);
+    const chapterRows = await db.select({ title: schema.chapters.title, meetingId: schema.chapters.meetingId, startMs: schema.chapters.startMs }).from(schema.chapters).where(ilike(schema.chapters.title, like)).limit(8);
     const actionRows = await db.select({ text: schema.actionItems.text, meetingId: schema.actionItems.meetingId, id: schema.actionItems.id }).from(schema.actionItems).where(or(ilike(schema.actionItems.text, like), ilike(schema.actionItems.owner, like))).limit(12);
     return [
       ...meetingRows.map((row) => ({ type: "Meeting", title: row.title, href: `/meetings/${row.id}` })),
       ...transcriptRows.map((row) => ({ type: "Transcript", title: row.text, href: `/meetings/${row.meetingId}?t=${row.startMs}` })),
+      ...chapterRows.map((row) => ({ type: "Chapter", title: row.title, href: `/meetings/${row.meetingId}?t=${row.startMs}` })),
       ...actionRows.map((row) => ({ type: "Action", title: row.text, href: `/meetings/${row.meetingId}?action=${row.id}` }))
     ];
-  } catch {
+  } catch (error) {
+    if (!shouldFallback) throw error;
     const { searchEverything } = await import("@/lib/data");
     return searchEverything(q);
   }
@@ -118,3 +126,5 @@ export async function createHighlight(meetingId: string, startMs: number, endMs:
   const [row] = await db.insert(schema.highlights).values({ id, meetingId, startMs, endMs, title, shareToken }).returning();
   return { id: row.id, meetingId: row.meetingId, startMs: row.startMs, endMs: row.endMs, title: row.title, shareToken: row.shareToken } satisfies Highlight;
 }
+
+
