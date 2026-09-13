@@ -11,3 +11,5 @@ desktop-agent/.electron-builder/
 desktop-agent/*.webm
 desktop-agent/recordings/
 *.tmp
+
+.artifacts/

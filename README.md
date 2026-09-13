@@ -41,3 +41,20 @@ npm start
 ```
 
 Tier reached: Tier 1. Uploaded recordings create a ready meeting with a playable video, a "You" speaker, a placeholder transcript segment, and a general summary. Live transcription remains intentionally unimplemented.
+
+
+## Google Calendar: fix redirect_uri_mismatch
+
+Google Calendar uses its own OAuth callback, separate from Supabase Google sign-in.
+
+1. In Google Cloud Console, open Google Auth Platform > Clients and select the Web application client matching `GOOGLE_CLIENT_ID` in your environment.
+2. Under Authorized redirect URIs, add exactly `http://localhost:3000/api/integrations/google/callback` for local development. This is a redirect URI, not an Authorized JavaScript origin. Do not add a trailing slash.
+3. For the deployed app, register `https://fathom8x.vercel.app/api/integrations/google/callback` if that is the deployment you are using. Set the deployment's `GOOGLE_REDIRECT_URI` to that URL. Local `.env.local` should keep the localhost URL. Restart or redeploy after changing environment variables.
+4. Enable the Google Calendar API in the same project. If the OAuth app is in Testing, add the connecting Google account as a test user.
+5. Open the site at the same origin and port as the configured redirect. Connect Google Calendar, choose the account, and allow read-only access. The callback performs the first sync; Settings shows a retry message if that sync fails.
+
+The preflight checks local URL consistency. It cannot inspect Google's authorized redirect URI list. An exact local match can still be rejected by Google until step 2 is complete.
+
+Reference: https://developers.google.com/identity/protocols/oauth2/web-server
+
+The dashboard follows calendar setup, desktop recording, and recap review. This clone requires manual recording in Fathom Capture; it does not implement Fathom's automatic meeting attendance. Desktop installation for development is described above; no hosted installer is currently linked in the web app.

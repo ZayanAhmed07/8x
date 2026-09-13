@@ -332,3 +332,24 @@ Walkthrough: `TODO`
 Anything to say:
 
 > I focused on the post-meeting review experience: seeded meetings, playback with synced transcript, AI-style summaries, action extraction, cross-meeting search, highlights, and public sharing. The real meeting bot/capture layer is intentionally simplified; I prioritized the product surface users evaluate after recordings are created.
+
+## Update: September 14, 2026
+
+- Rebuilt the homepage with a sample meeting preview, feature explanations, demo links, and a final call to action.
+- Redesigned sign-in/sign-up with labeled fields, password visibility, distinct page headings, and network-error feedback.
+- Updated shared colors, spacing, cards, buttons, responsive rules, and active workspace navigation.
+- Calendar code is present in this checkout; the earlier stash notes above are historical.
+- Required Calendar environment variables are present. A credential-free database check found zero saved connections and zero previous syncs. Live Google API access therefore remains unverified; sign in and connect Google Calendar in Settings first.
+- Calendar controls now handle network failures, refresh connection state, and display OAuth callback outcomes. Unsupported integrations are labeled Coming soon.
+- Validation: production build passed; three existing authentication tests passed; public homepage, sign-in, sign-up, and demo returned HTTP 200; unauthenticated Calendar status returned HTTP 401. Desktop screenshot inspected. Automated mobile browser verification was inconclusive, so full responsive interaction QA remains outstanding.
+
+
+## Dashboard onboarding and Calendar callback follow-up
+
+- Screenshot diagnosis: Google returned `redirect_uri_mismatch`. Local configuration sends `http://localhost:3000/api/integrations/google/callback`; the owner must authorize that exact URI on the matching Google Cloud OAuth client. See README for local/deployed setup. Google Cloud configuration has not been edited or verified here.
+- Dashboard now includes a state-aware three-step setup guide, actionable calendar empty states, upcoming meeting actions, and a searchable/filterable recording library.
+- Recording setup in Settings explains desktop pairing, manual capture, upload, and where to find the recap. No automatic recording or hosted installer is claimed.
+- Calendar connection uses an inline preflight error for origin/configuration problems and attempts the first sync after OAuth. A failed initial sync remains connected and offers retry.
+- Workflow reference: https://help.fathom.video/en/articles/276608 . This aligns the clone's navigation and guidance with Fathom's setup sequence; it is not a claim of complete functional parity.
+
+Validation for this follow-up: production build and all five auth/callback tests passed. Google consent and authenticated browser interaction remain unverified pending the Google Cloud redirect configuration.
