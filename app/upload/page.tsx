@@ -1,2 +1,7 @@
-import { UploadCloud } from "lucide-react";
-export default function UploadPage() { return <><div className="page-head"><div><p className="eyebrow">Simulated upload</p><h1>Upload</h1><p className="muted">Recording capture is out of scope, so this page shows the processing flow only.</p></div></div><section className="card"><UploadCloud size={34}/><h2>Drop a sample recording</h2><p className="muted">Processing moves through queued, transcribing, summarizing, then ready for review.</p><div className="grid"><div className="skeleton"/><span className="badge processing">Processing simulated</span></div></section></>; }
+import { UploadMeetingForm } from "@/components/meeting/UploadMeetingForm";
+import { requireUser } from "@/lib/auth";
+
+export default async function UploadPage() {
+  await requireUser();
+  return <><div className="page-head"><div><p className="eyebrow">Meeting upload</p><h1>Upload</h1><p className="muted">Create a searchable meeting workspace from a recording.</p></div></div><UploadMeetingForm /></>;
+}

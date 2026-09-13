@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+import { listUpcomingCalendarEvents, userIdFromAgentToken } from "@/lib/calendar";
+export async function GET(request: Request) { const userId = await userIdFromAgentToken(request.headers.get("authorization")); if (!userId) return NextResponse.json({ error: "Desktop agent is not paired." }, { status: 401 }); const events = await listUpcomingCalendarEvents(userId); return NextResponse.json({ events }); }
