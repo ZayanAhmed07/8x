@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fathom Capture</title>
+  <style>
+    :root { --ink:#1f1a17; --muted:#716b64; --line:#dfd7cc; --accent:#b85042; --paper:#fbfaf7; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 22px; background: var(--paper); color: var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
+    h1 { margin: 0 0 6px; font-family: Georgia, "Times New Roman", serif; font-size: 30px; line-height: 1; }
+    p { color: var(--muted); line-height: 1.4; }
+    label { display: grid; gap: 8px; margin: 14px 0; font-weight: 750; }
+    input, select { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; background: white; color: var(--ink); }
+    button, a.button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line); background: white; color: var(--ink); border-radius: 8px; padding: 10px 12px; cursor: pointer; text-decoration: none; width: 100%; font-weight: 800; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    .card { background:#fffdfa; border:1px solid var(--line); border-radius:8px; padding:16px; box-shadow:0 14px 40px rgba(31,26,23,.07); }
+    .thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); background: #eee5da; }
+    .status { display:inline-flex; gap:8px; align-items:center; border-radius:999px; background:#f0ebe4; padding:6px 10px; font-weight:800; font-size:13px; }
+    .dot { width:10px; height:10px; border-radius:999px; background:#b85042; box-shadow:0 0 0 4px rgba(184,80,66,.18); }
+    .stack { display:grid; gap:12px; }
+    .hidden { display:none; }
+  </style>
+</head>
+<body>
+  <section class="card stack">
+    <div>
+      <h1>Fathom Capture</h1>
+      <p id="help">Choose a source, then Record.</p>
+    </div>
+    <label>Backend URL
+      <input id="appUrl" value="http://localhost:3000" />
+    </label>
+    <label>Title
+      <input id="title" value="Captured meeting" />
+    </label>
+    <label>Capture source
+      <select id="sources"></select>
+    </label>
+    <img id="preview" class="thumb" alt="Selected source preview" />
+    <div id="idle" class="stack">
+      <button id="refresh">Refresh sources</button>
+      <button id="record" class="primary">Record</button>
+    </div>
+    <div id="recording" class="stack hidden">
+      <span class="status"><span class="dot"></span><span id="elapsed">00:00</span></span>
+      <button id="stop" class="primary">Stop</button>
+    </div>
+    <div id="uploading" class="stack hidden">
+      <span class="status">Uploading</span>
+      <p id="uploadMessage">Sending recording to the meeting workspace.</p>
+      <a id="dashboard" class="button hidden" href="#">View in dashboard</a>
+    </div>
+  </section>
+  <script src="recorder-window.js"></script>
+</body>
+</html>
