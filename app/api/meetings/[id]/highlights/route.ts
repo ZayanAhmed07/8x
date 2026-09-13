@@ -1,3 +1,4 @@
 import { NextResponse } from "next/server";
-import { getMeeting } from "@/lib/data";
-export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const meeting = getMeeting(id); return NextResponse.json({ highlights: meeting?.highlights ?? [] }); }
+import { createHighlight, getMeetingById } from "@/lib/db/queries";
+export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const meeting = await getMeetingById(id); return NextResponse.json({ highlights: meeting?.highlights ?? [] }); }
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) { const { id } = await params; const body = await request.json().catch(() => null); if (!body?.title || typeof body.startMs !== "number" || typeof body.endMs !== "number") return NextResponse.json({ error: "Invalid payload" }, { status: 400 }); const highlight = await createHighlight(id, body.startMs, body.endMs, body.title); return NextResponse.json({ highlight }, { status: 201 }); }
