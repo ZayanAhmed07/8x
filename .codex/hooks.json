@@ -1,0 +1,27 @@
+﻿{
+  "description": "Capture user prompts and final Codex responses for the 8x assignment.",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$(git rev-parse --show-toplevel)\\.codex\\hooks\\capture-turn.ps1\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"$(git rev-parse --show-toplevel)\\.codex\\hooks\\capture-turn.ps1\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
