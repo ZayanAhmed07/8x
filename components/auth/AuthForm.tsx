@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -10,11 +10,12 @@ type Mode = "signin" | "signup";
 type AuthFormProps = {
   returnTo: string;
   initialMessage?: string;
+  initialMode?: Mode;
 };
 
-export function AuthForm({ returnTo, initialMessage = "" }: AuthFormProps) {
+export function AuthForm({ returnTo, initialMessage = "", initialMode = "signin" }: AuthFormProps) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("signin");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState(initialMessage);

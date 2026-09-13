@@ -98,7 +98,7 @@ export async function POST(request: Request) {
         summaryTemplate: "general",
         shareToken: `${meetingId}-public`
       });
-      await tx.insert(schema.speakers).values({ id: speakerId, meetingId, name: "You", avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent("You")}`, color: "#b85042" });
+      await tx.insert(schema.speakers).values({ id: speakerId, meetingId, name: "You", avatarUrl: `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent("You")}`, color: "#FF5DA2" });
       await tx.insert(schema.meetingAttendees).values({ meetingId, speakerId });
     });
   } catch (error) {

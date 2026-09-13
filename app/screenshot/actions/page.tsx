@@ -1,0 +1,3 @@
+﻿export default function ScreenshotActionsPage() {
+  return <main className="screenshot-stage"><section className="card ask-card"><h2>Ask across meetings</h2><div className="toolbar"><input className="input" style={{flex:1}} readOnly value="What did we decide about pricing?"/><button className="button primary">Ask</button></div><p>The team kept pricing scope unchanged for the demo, with Priya owning customer evidence and Jon validating the follow-up numbers.</p><div className="toolbar"><span className="badge">Q3 Product Review - Pricing discussion</span><span className="badge">Northstar Sales Demo - Security questions</span></div></section></main>;
+}
