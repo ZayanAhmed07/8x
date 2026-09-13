@@ -1,0 +1,14 @@
+"use client";
+import Link from "next/link";
+import { useState } from "react";
+import { Search, Users, Video, ArrowUpRight, Upload } from "lucide-react";
+import { StatusBadge } from "@/components/shared/StatusBadge";
+type Meeting = { id: string; title: string; date: string; status: "ready" | "processing" | "failed"; durationSeconds: number; speakers: number; headline: string };
+export function MeetingLibrary({ meetings }: { meetings: Meeting[] }) {
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("all");
+  const filtered = meetings.filter(m => m.title.toLowerCase().includes(query.toLowerCase()) && (status === "all" || m.status === status));
+  return <section id="recordings" className="recording-library"><div className="section-heading"><div><h2>Meeting recordings <span className="badge">{meetings.length}</span></h2><p className="muted">Open a meeting for its recording, summary, and action items.</p></div></div><div className="library-toolbar"><label className="library-search"><Search size={17}/><input aria-label="Search meeting titles" placeholder="Search your meetings..." value={query} onChange={e=>setQuery(e.target.value)}/></label><select className="input" aria-label="Filter recordings by status" value={status} onChange={e=>setStatus(e.target.value)}><option value="all">All recordings</option><option value="ready">Ready to review</option><option value="processing">Processing</option><option value="failed">Needs attention</option></select></div>
+    {filtered.length ? <div className="grid cards">{filtered.map(m=><Link className="card recording-card" key={m.id} href={`/meetings/${m.id}`}><div className="recording-thumbnail"><Video size={30}/><span className="badge">{Math.round(m.durationSeconds/60)} min</span></div><div className="toolbar"><StatusBadge status={m.status}/><time className="muted">{new Date(m.date).toLocaleDateString()}</time></div><h3>{m.title}</h3><p className="muted">{m.headline}</p><div className="meeting-row"><span className="muted"><Users size={14}/> {m.speakers} participants</span><span className="recording-open">View recap <ArrowUpRight size={15}/></span></div></Link>)}</div> : <div className="library-empty"><Video size={32}/><h3>{meetings.length ? "No matching recordings" : "Your first recap is one recording away"}</h3><p className="muted">{meetings.length ? "Try a different title or clear the status filter." : "Upload an existing recording to start, or connect your calendar and record your next call."}</p>{meetings.length ? <button className="button" onClick={()=>{setQuery("");setStatus("all");}}>Clear filters</button> : <div className="toolbar"><Link className="button primary" href="/upload"><Upload size={16}/>Upload a recording</Link><Link className="button" href="/demo">See a sample recap</Link></div>}</div>}
+  </section>;
+}

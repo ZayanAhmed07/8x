@@ -15,5 +15,5 @@ export function AskPanel() {
     setCitations(data.citations ?? []);
     setLoading(false);
   };
-  return <section className="card"><h2>Ask across meetings</h2><div className="toolbar"><input className="input" style={{flex:1}} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="What did we decide about pricing?"/><button className="button primary" onClick={ask} disabled={loading}>{loading ? "Asking" : "Ask"}</button></div>{answer && <p>{answer}</p>}<div className="toolbar">{citations.map((citation) => <a className="badge" key={citation.segmentId} href={`/meetings/${citation.meetingId}?t=${citation.startMs}`}>{citation.label}</a>)}</div></section>;
+  return <section className="card ask-card"><h2>Ask across meetings</h2><div className="toolbar"><input className="input" style={{flex:1}} value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="What did we decide about pricing?"/><button className="button primary" onClick={ask} disabled={loading}>{loading ? "Asking" : "Ask"}</button></div>{answer && <p>{answer}</p>}<div className="toolbar">{citations.map((citation) => <a className="badge" key={citation.segmentId} href={`/meetings/${citation.meetingId}?t=${citation.startMs}`}>{citation.label}</a>)}</div></section>;
 }

@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
-import { exchangeGoogleCode } from "@/lib/calendar";
+import { exchangeGoogleCode, syncGoogleMeetEvents } from "@/lib/calendar";
 import { encryptText } from "@/lib/crypto";
 import { getDb } from "@/lib/db/client";
 import * as schema from "@/lib/db/schema";
@@ -27,6 +27,8 @@ export async function GET(request: Request) {
     const profile = await fetch("https://openidconnect.googleapis.com/v1/userinfo", { headers: { authorization: `Bearer ${token.access_token}` } }).then((res) => res.ok ? res.json() : null);
     const row = { id: randomUUID(), userId: user.id, email: String(profile?.email ?? user.email ?? "Google account"), accessTokenEncrypted: encryptText(token.access_token), refreshTokenEncrypted: encryptText(token.refresh_token), expiresAt: new Date(Date.now() + Math.max(60, token.expires_in - 60) * 1000), error: null, updatedAt: new Date() };
     await getDb().insert(schema.googleConnections).values(row).onConflictDoUpdate({ target: schema.googleConnections.userId, set: row });
+    try { await syncGoogleMeetEvents(user.id); }
+    catch { return NextResponse.redirect(new URL("/settings?google=sync_error", url.origin)); }
     return NextResponse.redirect(new URL("/settings?google=connected", url.origin));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Google Calendar connection failed.";
