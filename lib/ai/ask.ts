@@ -1,0 +1,1 @@
+export function askSeeded(question: string) { return { answer: `Seeded answer for: ${question || "What changed across meetings?"}`, citations: [{ meetingId: "product-review", segmentId: "product-review-seg-2" }] }; }

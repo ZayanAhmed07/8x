@@ -1,0 +1,3 @@
+import { CheckCircle2 } from "lucide-react";
+const integrations = ["Google Calendar", "Zoom", "Google Meet", "Teams", "Slack", "HubSpot"];
+export default function SettingsPage() { return <><div className="page-head"><div><p className="eyebrow">Settings</p><h1>Integrations</h1><p className="muted">External services are represented visually and kept simulated.</p></div></div><div className="grid cards">{integrations.map((name) => <section className="card" key={name}><div className="toolbar"><CheckCircle2 color="#586a4d"/><h2>{name}</h2></div><span className="badge ready">Connected (simulated)</span></section>)}</div></>; }

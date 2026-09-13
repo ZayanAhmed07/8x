@@ -1,0 +1,4 @@
+import Link from "next/link";
+import { meetings } from "@/lib/data";
+const columns = ["Open", "In progress", "Done"] as const;
+export default function ActionsPage() { const items = meetings.flatMap((m) => m.actionItems.map((item) => ({ ...item, meeting: m.title }))); return <><div className="page-head"><div><p className="eyebrow">Cross-meeting execution</p><h1>Action Board</h1><p className="muted">Tasks do not disappear inside individual meeting notes.</p></div></div><div className="board">{columns.map((column) => <section className="column" key={column}><h2>{column}</h2><div className="grid">{items.filter((item) => item.status === column).map((item) => <Link className="card" key={item.id} href={`/meetings/${item.meetingId}?action=${item.id}`}><strong>{item.text}</strong><p className="muted">{item.meeting}</p><span className="badge">{item.owner} - {item.dueDate}</span></Link>)}</div></section>)}</div></>; }
