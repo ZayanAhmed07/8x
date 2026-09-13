@@ -1,1 +1,1 @@
-export async function summarizeMeeting() { return { live: false, reason: "Seeded summaries are the source of truth unless GROQ_API_KEY is enabled." }; }
+export async function summarizeMeeting() { return { live: Boolean(process.env.GROQ_API_KEY), reason: process.env.GROQ_API_KEY ? "Live summarization can be enabled here." : "Seeded summaries are the source of truth unless GROQ_API_KEY is enabled." }; }
