@@ -1,4 +1,4 @@
-const { app, BrowserWindow, desktopCapturer, ipcMain, shell } = require("electron");
+﻿const { app, BrowserWindow, desktopCapturer, ipcMain, shell } = require("electron");
 const path = require("node:path");
 
 app.setAsDefaultProtocolClient("fathom-clone");
@@ -30,6 +30,27 @@ function normalizeAppUrl(raw) {
   return url.toString().replace(/\/$/, "");
 }
 
+function authHeaders(token, json = false) {
+  const value = String(token || "").trim();
+  if (!value) throw new Error("Paste the desktop agent token from the web app before syncing or uploading.");
+  return json ? { authorization: `Bearer ${value}`, "content-type": "application/json" } : { authorization: `Bearer ${value}` };
+}
+
+async function readApiError(response) {
+  const text = await response.text().catch(() => "");
+  if (!text) return `Request failed with status ${response.status}.`;
+  try {
+    const data = JSON.parse(text);
+    return data?.error || data?.message || text;
+  } catch {
+    return text;
+  }
+}
+
+function safeFileName(input) {
+  return String(input || "captured-meeting").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 64) || "captured-meeting";
+}
+
 function sendEvent(event) {
   pendingEvent = event;
   if (win?.webContents) win.webContents.send("calendar:event", event);
@@ -52,8 +73,8 @@ ipcMain.handle("capture:sources", async () => {
 
 ipcMain.handle("agent:events", async (_event, { appUrl, token }) => {
   const baseUrl = normalizeAppUrl(appUrl);
-  const response = await fetch(`${baseUrl}/api/desktop-agent/events`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
-  if (!response.ok) throw new Error(await response.text());
+  const response = await fetch(`${baseUrl}/api/desktop-agent/events`, { headers: authHeaders(token) });
+  if (!response.ok) throw new Error(await readApiError(response));
   return response.json();
 });
 
@@ -61,15 +82,46 @@ ipcMain.handle("open:external", async (_event, url) => { if (/^https:\/\/meet\.g
 
 ipcMain.handle("recording:upload", async (_event, { buffer, title, durationSeconds, appUrl, token, calendarEventId }) => {
   const baseUrl = normalizeAppUrl(appUrl);
-  const blob = new Blob([Buffer.from(buffer)], { type: "video/webm" });
-  const form = new FormData();
-  form.append("recording", blob, "recording.webm");
-  form.append("title", title || "Captured meeting");
-  form.append("duration", String(durationSeconds || 0));
-  if (calendarEventId) form.append("calendarEventId", calendarEventId);
-  const response = await fetch(`${baseUrl}/api/meetings/record`, { method: "POST", headers: token ? { authorization: `Bearer ${token}` } : {}, body: form });
-  if (!response.ok) throw new Error(await response.text());
-  return response.json();
+  const fileBuffer = Buffer.from(buffer);
+  const contentType = "video/webm";
+  const fileName = `${safeFileName(title)}-${Date.now()}.webm`;
+  const headers = authHeaders(token, true);
+
+  const uploadInit = await fetch(`${baseUrl}/api/desktop-agent/events`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ action: "prepare-upload", fileName, contentType, size: fileBuffer.byteLength })
+  });
+  if (!uploadInit.ok) throw new Error(await readApiError(uploadInit));
+  const uploadData = await uploadInit.json();
+  if (!uploadData?.signedUrl || !uploadData?.meetingId || !uploadData?.objectPath) {
+    throw new Error("The app did not return a valid recording upload URL.");
+  }
+
+  const upload = await fetch(uploadData.signedUrl, {
+    method: "PUT",
+    headers: { "content-type": contentType, "x-upsert": "false" },
+    body: fileBuffer
+  });
+  if (!upload.ok) throw new Error(await readApiError(upload));
+
+  const finalize = await fetch(`${baseUrl}/api/desktop-agent/events`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      action: "finalize-recording",
+      meetingId: uploadData.meetingId,
+      objectPath: uploadData.objectPath,
+      title: title || "Captured meeting",
+      durationSeconds: durationSeconds || 1,
+      calendarEventId,
+      contentType,
+      fileName,
+      size: fileBuffer.byteLength
+    })
+  });
+  if (!finalize.ok) throw new Error(await readApiError(finalize));
+  return finalize.json();
 });
 
 for (const arg of process.argv) { if (arg.startsWith("fathom-clone://")) pendingEvent = sanitizeDeepLink(arg); }

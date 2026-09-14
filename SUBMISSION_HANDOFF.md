@@ -353,3 +353,10 @@ Anything to say:
 - Workflow reference: https://help.fathom.video/en/articles/276608 . This aligns the clone's navigation and guidance with Fathom's setup sequence; it is not a claim of complete functional parity.
 
 Validation for this follow-up: production build and all five auth/callback tests passed. Google consent and authenticated browser interaction remain unverified pending the Google Cloud redirect configuration.
+
+## Vercel middleware crash follow-up
+
+- Reproduced HTTP 500 MIDDLEWARE_INVOCATION_FAILED on https://fathom8x.vercel.app/.
+- Production exception logs are unavailable here; missing/invalid deployment Supabase variables are a plausible cause, not a confirmed diagnosis.
+- Migrated middleware.ts to proxy.ts, added configuration validation and controlled 503 responses, supported public publishable keys, and handled read-only Server Component cookies.
+- Six regression tests pass. Deployment recovery settings are documented in README. Production settings and deployment still require access to Vercel; no live fix is claimed.
