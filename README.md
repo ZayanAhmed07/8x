@@ -58,3 +58,20 @@ The preflight checks local URL consistency. It cannot inspect Google's authorize
 Reference: https://developers.google.com/identity/protocols/oauth2/web-server
 
 The dashboard follows calendar setup, desktop recording, and recap review. This clone requires manual recording in Fathom Capture; it does not implement Fathom's automatic meeting attendance. Desktop installation for development is described above; no hosted installer is currently linked in the web app.
+
+## Vercel deployment recovery
+
+The deployed homepage returned HTTP 500 / MIDDLEWARE_INVOCATION_FAILED on September 14, 2026. The exact production exception was not available without authenticated Vercel logs. The local middleware had unchecked Supabase configuration and unhandled refresh exceptions.
+
+The app now uses Next.js 16 proxy.ts, validates Supabase configuration, supports anon or publishable public keys, and returns a controlled non-cacheable 503 when authentication infrastructure is unavailable. Protected routes still enforce authentication. Server Components tolerate their read-only cookie store; proxy handles refreshed session cookies.
+
+Before redeploying fathom8x.vercel.app, verify these in Vercel Project Settings > Environment Variables, with Production enabled:
+
+- NEXT_PUBLIC_SUPABASE_URL: your Supabase project URL.
+- NEXT_PUBLIC_SUPABASE_ANON_KEY: your Supabase anon key (or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY). Never use the service-role key here.
+- GOOGLE_REDIRECT_URI: https://fathom8x.vercel.app/api/integrations/google/callback
+- GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_TOKEN_ENCRYPTION_KEY, DATABASE_URL: the corresponding configured project values.
+
+Local .env.local is not automatically copied into Vercel. Public environment variables are embedded at build time, so redeploy after changes. In Google Cloud, keep the Supabase login callback and add the deployed Calendar callback to Authorized redirect URIs. In Supabase Authentication URL Configuration, allow https://fathom8x.vercel.app/auth/callback and set the production Site URL appropriately.
+
+Deploy the current source changes, then check the homepage and sign-in before retrying Calendar. If failures persist, inspect Vercel Runtime Logs for [auth-config] or [auth-refresh]. No Vercel environment settings or deployment were changed from this workspace.

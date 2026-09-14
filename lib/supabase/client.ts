@@ -1,2 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
-export function createClient() { return createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!); }
+import { getSupabaseConfig } from "./config";
+export function createClient() {
+  const settings = getSupabaseConfig();
+  if (!settings) throw new Error("Supabase public URL and key are not configured.");
+  return createBrowserClient(settings.url, settings.key);
+}
