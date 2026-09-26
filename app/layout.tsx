@@ -1,12 +1,16 @@
 import "./globals.css";
 import type { Metadata } from "next";
-import { Inter, Space_Grotesk } from "next/font/google";
+import { Inter, Instrument_Serif, JetBrains_Mono } from "next/font/google";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-ui" });
-const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-display" });
+const serif = Instrument_Serif({ subsets: ["latin"], weight: "400", variable: "--font-display" });
+const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
-export const metadata: Metadata = { title: "Fathom Workspace", description: "Post-meeting workspace demo" };
+export const metadata: Metadata = {
+  title: { default: "Tally", template: "%s · Tally" },
+  description: "Meeting notes that show their work: who owes what, and the moment they said it."
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body className={`${inter.variable} ${spaceGrotesk.variable}`}>{children}</body></html>;
+  return <html lang="en"><body className={`${inter.variable} ${serif.variable} ${mono.variable}`}>{children}</body></html>;
 }

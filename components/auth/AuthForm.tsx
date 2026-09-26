@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
@@ -69,20 +69,20 @@ export function AuthForm({ returnTo, initialMessage = "", initialMode = "signin"
 
   return (
     <div className="grid auth-form">
-      <button className="button" type="button" onClick={handleGoogle} disabled={loading}>
+      <button className="button" type="button" onClick={handleGoogle} disabled={loading} style={{ minHeight: 42 }}>
         <span className="google-mark" aria-hidden="true">G</span> Continue with Google
       </button>
       <div className="auth-divider">or continue with email</div>
       <form className="grid" onSubmit={handleEmail}>
         <label>Email address<input className="input" type="email" autoComplete="email" placeholder="Email" value={email} onChange={(event) => setEmail(event.target.value)} disabled={loading} required /></label>
         <label>Password<div className="password-field"><input className="input" type={showPassword ? "text" : "password"} autoComplete={mode === "signin" ? "current-password" : "new-password"} placeholder="Password" minLength={mode === "signup" ? 6 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} disabled={loading} required /></div><button className="password-toggle" type="button" onClick={() => setShowPassword(!showPassword)} aria-pressed={showPassword}>{showPassword ? "Hide password" : "Show password"}</button></label>
-        <button className="button primary" type="submit" disabled={loading}>
+        <button className="button primary" type="submit" disabled={loading} style={{ minHeight: 42 }}>
           {loading ? <Loader2 size={17} /> : mode === "signin" ? <LogIn size={17} /> : <UserPlus size={17} />}
           {mode === "signin" ? "Sign in" : "Create account"}
         </button>
       </form>
       <p className="auth-switch">{mode === "signin" ? "New here? " : "Already have an account? "}<Link href={`${mode === "signin" ? "/sign-up" : "/sign-in"}?next=${encodeURIComponent(returnTo)}`}>{mode === "signin" ? "Create an account" : "Sign in"}</Link></p>
-      {message ? <p className="muted" role="status">{message}</p> : null}
+      {message ? <p className="form-message" role="status">{message}</p> : null}
     </div>
   );
 }

@@ -1,77 +1,68 @@
-# Fathom Workspace Clone
+# Tally
 
-A Next.js post-meeting workspace demo focused on the part of Fathom users live in after the call: summaries, synced transcript playback, chapter navigation, cross-meeting actions, global search, public sharing, and a seeded Ask fallback.
+Meeting notes that show their work: who owes what, and the moment they said it.
 
-## Implemented
+Tally started as a rebuild of [Fathom](https://fathom.ai). I kept the core loop (record, transcribe, recap, share) and rebuilt the rest around one opinion: **the recap isn't the product. What matters is whether the things people agreed to actually happen.**
 
-- Meeting dashboard with processing/ready states and realistic seeded meetings.
-- Meeting detail workspace with video, chapter scrubber, synchronized transcript, summary templates, action items, and highlights.
-- Cross-meeting action board, global search, Cmd+K command palette, public share pages, simulated upload, and simulated integrations.
-- Drizzle schema and Supabase helper stubs using env var names only.
+## What's different from Fathom, and why
 
-## Stubbed
+| Fathom | Tally | Why |
+| --- | --- | --- |
+| Action items are a list inside each meeting's summary | **Commitments** are first-class: owner, due date, and a *receipt* linking to the second it was said | "Priya will send the copy" is only useful if you can check she said Monday, not Friday |
+| Each meeting stands alone | **Carry-over**: open commitments from earlier meetings appear when their owner is in the room again, with the moment they came up | This is where teams actually lose things: between meetings |
+| Video-first player with a transcript beside it | **Speaker lanes**: one row per person across the whole meeting, with chapters and clips on the same timeline | On an 8-person hour you need to see who drove it and who never spoke (Owen, 3%) at a glance |
+| Summary templates are fixed after the call | Switch templates, and **generate a missing one on demand**; every line cites a transcript line | Summaries you can't verify don't get trusted |
+| Shared links open a video | Shared recaps are a **document for someone who wasn't there**: decisions, who owes what, clips as readable excerpts | Nobody outside the call will watch 60 minutes |
 
-Recording bot, calendar OAuth, live Zoom/Meet/Teams capture, email notifications, team permissions, and billing are intentionally simulated.
+### What I cut
 
-## Local Setup
+- **The recording bot.** Capture is a desktop app you start yourself (`desktop-agent/`), or you upload a file. A bot joining calls is the hardest part to build and the least interesting to judge.
+- **The marketing site.** `/` opens the sample workspace. The product explains itself faster than a landing page.
+- **Stub integrations** (Zoom, Teams, Slack, HubSpot "coming soon" cards). Only what works is shown.
+- **Mock data.** Everything, including the signed-out sample workspace, is read from Postgres.
 
-1. `npm install`
-2. Copy `.env.example` to `.env.local` and fill values as needed.
-3. `npm run dev`
-4. Open `http://localhost:3000/meetings`
+## How it works
 
-## Env Vars
+- **Next.js 16** (App Router), **Postgres on Supabase** via Drizzle, **Supabase Auth**.
+- **Sample workspace**: `npm run seed` creates a real, confirmed `demo@fathom8x.app` user who owns six meetings. Signed-out visitors, and new users with no recordings yet, see that workspace (`lib/viewer.ts`). Visitors can tick off commitments and create clips; re-running the seed resets it.
+- **Seed content** (`scripts/seed-data.ts`) is written as readable scripts (`speaker: line ^tag`). Timestamps come from word counts at 150 wpm, and tags anchor every decision, commitment and clip to the exact line it came from.
+- **Uploads** (`/api/meetings/record`) store the file in Supabase Storage, transcribe with Whisper on Groq, and summarise with `openai/gpt-oss-120b`.
+- **Template recaps** (`lib/ai/templates.ts`) number the transcript lines and ask the model to cite line numbers, so each bullet links to the right speaker, not a guessed timestamp.
+- **Ask** (`lib/ai/ask.ts`) retrieves matching transcript lines from Postgres, then answers from them and cites them. Without an API key it quotes the best match.
+- Sample meetings are transcript-only, so playback runs on a transcript clock. Uploaded recordings play the real video on the same timeline.
 
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `GROQ_API_KEY`, `NEXT_PUBLIC_APP_URL`, `NEXT_PUBLIC_DEMO_MODE`.
-
-## Next
-
-Connect `scripts/seed.ts` to Drizzle inserts, add persistent action toggles/highlight creation, and deploy to Vercel once credentials are available.
-
-## Desktop Agent
-
-The desktop agent is a separate Electron app in `desktop-agent/`. It manually captures a user-selected screen or window, system audio, and microphone audio after pressing Record, keeps the recording in memory while recording, and uploads the WebM only after pressing Stop. It does not auto-join calls, auto-start, run hidden recording, or replace the simulated meeting integrations in Settings.
-
-Run it locally:
+## Run it
 
 ```bash
-cd desktop-agent
 npm install
-npm start
+cp .env.example .env.local   # fill in Supabase, DATABASE_URL, GROQ_API_KEY
+npm run db:migrate
+npm run seed
+npm run dev
 ```
 
-Tier reached: Tier 1. Uploaded recordings create a ready meeting with a playable video, a "You" speaker, a placeholder transcript segment, and a general summary. Live transcription remains intentionally unimplemented.
+`DATABASE_URL` should be the Supabase **transaction pooler** URL (port 6543).
 
+## Desktop capture app
 
-## Google Calendar: fix redirect_uri_mismatch
+`desktop-agent/` is an Electron app that records a window you pick, plus microphone and system audio, only after you press Record, and uploads when you press Stop. Pair it from Settings with an agent token.
 
-Google Calendar uses its own OAuth callback, separate from Supabase Google sign-in.
+```bash
+cd desktop-agent && npm install && npm start
+```
 
-1. In Google Cloud Console, open Google Auth Platform > Clients and select the Web application client matching `GOOGLE_CLIENT_ID` in your environment.
-2. Under Authorized redirect URIs, add exactly `http://localhost:3000/api/integrations/google/callback` for local development. This is a redirect URI, not an Authorized JavaScript origin. Do not add a trailing slash.
-3. For the deployed app, register `https://fathom8x.vercel.app/api/integrations/google/callback` if that is the deployment you are using. Set the deployment's `GOOGLE_REDIRECT_URI` to that URL. Local `.env.local` should keep the localhost URL. Restart or redeploy after changing environment variables.
-4. Enable the Google Calendar API in the same project. If the OAuth app is in Testing, add the connecting Google account as a test user.
-5. Open the site at the same origin and port as the configured redirect. Connect Google Calendar, choose the account, and allow read-only access. The callback performs the first sync; Settings shows a retry message if that sync fails.
+## Tally for Meet (Chrome extension)
 
-The preflight checks local URL consistency. It cannot inspect Google's authorized redirect URI list. An exact local match can still be rejected by Google until step 2 is complete.
+`browser-extension/` gives Google Meet recordings real speaker names instead of "Others on the call".
 
-Reference: https://developers.google.com/identity/protocols/oauth2/web-server
+- It reads Meet's live captions, which label every line with the speaker, and turns them on if they're off. There's an option to hide the overlay.
+- It sends a "who spoke when" timeline to Tally Capture over a local-only connection (`127.0.0.1:47821`, extension origins only).
+- The desktop app uploads that timeline with the recording, and the server relabels each "others" line with whoever Meet showed speaking during most of it. It allows for caption delay and paused time.
 
-The dashboard follows calendar setup, desktop recording, and recap review. This clone requires manual recording in Fathom Capture; it does not implement Fathom's automatic meeting attendance. Desktop installation for development is described above; no hosted installer is currently linked in the web app.
+Install for development: open `chrome://extensions`, turn on Developer mode, choose **Load unpacked**, and select `browser-extension/`.
 
-## Vercel deployment recovery
+Limits: English Meet UI only (it looks for "Leave call" and "Turn on captions"), and names appear only for people who spoke while captions were on.
 
-The deployed homepage returned HTTP 500 / MIDDLEWARE_INVOCATION_FAILED on September 14, 2026. The exact production exception was not available without authenticated Vercel logs. The local middleware had unchecked Supabase configuration and unhandled refresh exceptions.
+## Google Calendar
 
-The app now uses Next.js 16 proxy.ts, validates Supabase configuration, supports anon or publishable public keys, and returns a controlled non-cacheable 503 when authentication infrastructure is unavailable. Protected routes still enforce authentication. Server Components tolerate their read-only cookie store; proxy handles refreshed session cookies.
-
-Before redeploying fathom8x.vercel.app, verify these in Vercel Project Settings > Environment Variables, with Production enabled:
-
-- NEXT_PUBLIC_SUPABASE_URL: your Supabase project URL.
-- NEXT_PUBLIC_SUPABASE_ANON_KEY: your Supabase anon key (or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY). Never use the service-role key here.
-- GOOGLE_REDIRECT_URI: https://fathom8x.vercel.app/api/integrations/google/callback
-- GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_TOKEN_ENCRYPTION_KEY, DATABASE_URL: the corresponding configured project values.
-
-Local .env.local is not automatically copied into Vercel. Public environment variables are embedded at build time, so redeploy after changes. In Google Cloud, keep the Supabase login callback and add the deployed Calendar callback to Authorized redirect URIs. In Supabase Authentication URL Configuration, allow https://fathom8x.vercel.app/auth/callback and set the production Site URL appropriately.
-
-Deploy the current source changes, then check the homepage and sign-in before retrying Calendar. If failures persist, inspect Vercel Runtime Logs for [auth-config] or [auth-refresh]. No Vercel environment settings or deployment were changed from this workspace.
+Calendar uses its own OAuth callback, separate from Supabase sign-in. Register `<origin>/api/integrations/google/callback` as an authorized redirect URI in Google Cloud, set `GOOGLE_REDIRECT_URI` to the same value, and enable the Calendar API. Access is read-only and used to list upcoming Google Meet calls.
