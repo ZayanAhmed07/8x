@@ -1,4 +1,4 @@
-const DOWNLOAD = "https://github.com/ZayanAhmed07/8x/releases/latest/download/Tally-Capture-Setup.exe";
+const DOWNLOAD = "https://github.com/ZayanAhmed07/Tally/releases/latest/download/Tally-Capture-Setup.exe";
 
 function check(ok, title, detail) {
   const item = document.createElement("li");
