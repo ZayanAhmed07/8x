@@ -82,7 +82,15 @@ export async function syncGoogleMeetEvents(userId: string) {
     url.searchParams.set("maxResults", "250");
     if (pageToken) url.searchParams.set("pageToken", pageToken);
     const response = await fetch(url, { headers: { authorization: `Bearer ${token}` } });
-    if (!response.ok) throw new Error("Calendar API unavailable.");
+    if (!response.ok) {
+      // Pass Google's reason through: "API not enabled" and "insufficient permissions" need different fixes.
+      const body = await response.json().catch(() => null);
+      const reason = body?.error?.errors?.[0]?.reason ?? body?.error?.status ?? "";
+      const message = reason === "accessNotConfigured" || /has not been used|is disabled/i.test(body?.error?.message ?? "")
+        ? "The Google Calendar API isn't enabled for this app's Google Cloud project."
+        : response.status === 403 ? "Google refused calendar access. Reconnect and allow calendar access." : `Google Calendar returned ${response.status}${body?.error?.message ? `: ${body.error.message}` : "."}`;
+      throw new Error(message);
+    }
     const data = await response.json();
     for (const event of data.items ?? []) {
       const meetUrl = extractMeetUrl(event);
