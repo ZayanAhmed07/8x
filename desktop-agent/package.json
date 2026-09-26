@@ -15,7 +15,7 @@
     "icons": "node scripts/make-icons.js",
     "art": "node scripts/make-icons.js && electron scripts/make-installer-art.js",
     "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
-    "dist": "npm run clean && npm run art && electron-builder --win nsis --publish never",
+    "dist": "npm run clean && electron-builder --win nsis --publish never",
     "pack": "electron-builder --dir"
   },
   "build": {

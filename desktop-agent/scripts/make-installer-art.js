@@ -92,6 +92,7 @@ async function render(html, width, height) {
 app.on("window-all-closed", () => {});
 
 app.whenReady().then(async () => {
+  try {
   fs.writeFileSync(path.join(BUILD, "installerSidebar.bmp"), toBmp(await render(SIDEBAR, 164, 314), 164, 314));
   fs.writeFileSync(path.join(BUILD, "installerHeader.bmp"), toBmp(await render(HEADER, 150, 57), 150, 57));
   const { nativeImage } = require("electron");
@@ -102,4 +103,9 @@ app.whenReady().then(async () => {
   fs.writeFileSync(path.join(BUILD, "preview-header.png"), (await render(HEADER, 150, 57)).resize({ width: 150, height: 57 }).toPNG());
   console.log("installer art written to build/");
   app.quit();
+  } catch (error) {
+    // Offscreen capture occasionally fails on some GPUs; the committed art is still valid.
+    console.error("installer art failed:", error.message, "(re-run npm run art)");
+    app.exit(1);
+  }
 });
