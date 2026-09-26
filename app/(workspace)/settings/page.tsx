@@ -10,7 +10,7 @@ import * as schema from "@/lib/db/schema";
 
 export const metadata = { title: "Settings" };
 
-const DOWNLOAD_URL = process.env.NEXT_PUBLIC_CAPTURE_DOWNLOAD_URL ?? "https://github.com/ZayanAhmed07/8x/releases/latest";
+const DOWNLOAD_URL = process.env.NEXT_PUBLIC_CAPTURE_DOWNLOAD_URL ?? "https://github.com/ZayanAhmed07/8x/releases/latest/download/Tally-Capture-Setup.exe";
 
 const NOTICES: Record<string, string> = {
   connected: "Google Calendar connected and synced. Your upcoming meetings are on the Meetings page.",

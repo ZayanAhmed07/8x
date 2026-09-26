@@ -221,3 +221,6 @@ html.splash-lock { overflow: hidden; }
 .l-card-dark { grid-column: 1 / -1; flex-direction: row; align-items: center; gap: 40px; padding: 34px; }
 .l-card-dark .l-mock { flex: 1; margin-top: 0; padding: 20px; }
 @media (max-width: 720px) { .l-card-dark { flex-direction: column; align-items: stretch; } }
+
+/* Decided before paint by the inline script in <Splash/>. */
+html.splash-seen .splash { display: none; }

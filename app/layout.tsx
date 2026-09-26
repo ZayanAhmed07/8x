@@ -12,5 +12,6 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body className={`${inter.variable} ${serif.variable} ${mono.variable}`}>{children}</body></html>;
+  // The landing splash sets a class on <html> before hydration.
+  return <html lang="en" suppressHydrationWarning><body className={`${inter.variable} ${serif.variable} ${mono.variable}`}>{children}</body></html>;
 }
