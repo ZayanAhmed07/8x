@@ -11,15 +11,17 @@
   },
   "scripts": {
     "start": "electron .",
-    "dev": "cross-env TALLY_APP_URL=http://localhost:3000 electron .",
+    "start:local": "cross-env TALLY_APP_URL=http://localhost:3000 electron .",
     "icons": "node scripts/make-icons.js",
-    "dist": "electron-builder --win nsis",
+    "art": "node scripts/make-icons.js && electron scripts/make-installer-art.js",
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true })\"",
+    "dist": "npm run clean && npm run art && electron-builder --win nsis --publish never",
     "pack": "electron-builder --dir"
   },
   "build": {
     "appId": "app.tally.capture",
     "productName": "Tally Capture",
-    "artifactName": "Tally-Capture-Setup-${version}.${ext}",
+    "artifactName": "Tally-Capture-Setup.${ext}",
     "files": [
       "src/**/*",
       "package.json"
@@ -31,22 +33,43 @@
     "protocols": [
       {
         "name": "Tally Capture sign-in",
-        "schemes": ["tally-capture"]
+        "schemes": [
+          "tally-capture"
+        ]
       }
     ],
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "icon": "build/icon.png",
-      "requestedExecutionLevel": "asInvoker"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "requestedExecutionLevel": "asInvoker",
+      "legalTrademarks": "Tally"
     },
     "nsis": {
-      "oneClick": true,
+      "oneClick": false,
       "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "include": "build/installer.nsh",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "Tally Capture",
-      "runAfterFinish": true
-    }
+      "uninstallDisplayName": "Tally Capture",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "copyright": "Copyright © 2026 Zayan Ahmed"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",

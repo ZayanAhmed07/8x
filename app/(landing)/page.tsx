@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description: "Tally records your calls without a bot and turns them into who owes what, each promise linked to the second it was said."
 };
 
-const DOWNLOAD_URL = process.env.NEXT_PUBLIC_CAPTURE_DOWNLOAD_URL ?? "https://github.com/ZayanAhmed07/8x/releases/latest";
+const DOWNLOAD_URL = process.env.NEXT_PUBLIC_CAPTURE_DOWNLOAD_URL ?? "https://github.com/ZayanAhmed07/8x/releases/latest/download/Tally-Capture-Setup.exe";
 
 // Real commitments from the sample workspace, for the receipts strip.
 const RECEIPTS = [

@@ -43,13 +43,18 @@ npm run dev
 
 `DATABASE_URL` should be the Supabase **transaction pooler** URL (port 6543).
 
-## Desktop capture app
+## Desktop capture app (Tally Capture)
 
-`desktop-agent/` is an Electron app that records a window you pick, plus microphone and system audio, only after you press Record, and uploads when you press Stop. Pair it from Settings with an agent token.
+`desktop-agent/` is an Electron app. It records your microphone and your computer's audio as separate tracks, only after you press Record, and uploads them when you press Stop. You sign in through the browser; there is no URL or password field.
 
 ```bash
-cd desktop-agent && npm install && npm start
+cd desktop-agent && npm install
+npm start              # talks to https://fathom8x.vercel.app (set in package.json > tally.appUrl)
+npm run start:local    # talks to http://localhost:3000
+npm run dist           # builds dist/Tally-Capture-Setup.exe (branded installer)
 ```
+
+**Releasing:** bump `version` in `desktop-agent/package.json`, run `npm run dist`, then create a GitHub release and attach `dist/Tally-Capture-Setup.exe` without renaming it. The website's download buttons use `/releases/latest/download/Tally-Capture-Setup.exe`, so the release marked **Latest** is always what people get. The installer isn't code-signed, so Windows SmartScreen shows "More info → Run anyway" on first install.
 
 ## Tally for Meet (Chrome extension)
 
