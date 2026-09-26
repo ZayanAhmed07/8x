@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { getMeetingById } from "@/lib/db/queries";
+import { getViewer } from "@/lib/viewer";
 
 export async function GET(_: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  const { id } = await params;
-  const meeting = await getMeetingById(id, user.id);
+  const [viewer, { id }] = await Promise.all([getViewer(), params]);
+  const meeting = await getMeetingById(id, viewer.workspaceUserId);
   return meeting ? NextResponse.json({ meeting }) : NextResponse.json({ error: "Not found" }, { status: 404 });
 }

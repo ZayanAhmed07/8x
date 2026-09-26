@@ -1,126 +1,107 @@
 import { existsSync, readFileSync } from "node:fs";
-import { count, inArray } from "drizzle-orm";
-import { meetings as seedMeetings } from "../lib/data";
+import { randomBytes } from "node:crypto";
+import { count, eq, inArray } from "drizzle-orm";
+import { createClient } from "@supabase/supabase-js";
+import { seedMeetings, seedMentions } from "./seed-data";
 import { getDb } from "../lib/db/client";
 import * as schema from "../lib/db/schema";
 
 function loadEnvFile(path: string) {
   if (!existsSync(path)) return;
-  const seen = new Set<string>();
   for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith("#")) continue;
     const index = trimmed.indexOf("=");
     if (index === -1) continue;
     const key = trimmed.slice(0, index).trim();
-    if (seen.has(key)) continue;
-    const value = trimmed.slice(index + 1).trim().replace(/^[\'\"]|[\'\"]$/g, "");
-    process.env[key] = value;
-    seen.add(key);
+    process.env[key] ??= trimmed.slice(index + 1).trim().replace(/^['"]|['"]$/g, "");
   }
+}
+
+/** The sample workspace belongs to a real, confirmed auth user nobody signs in as. */
+async function ensureDemoUser(email: string) {
+  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false, autoRefreshToken: false } });
+  for (let page = 1; ; page++) {
+    const { data, error } = await supabase.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) throw error;
+    const existing = data.users.find((user) => user.email === email);
+    if (existing) return { supabase, userId: existing.id };
+    if (data.users.length < 200) break;
+  }
+  const { data, error } = await supabase.auth.admin.createUser({ email, password: randomBytes(24).toString("base64url"), email_confirm: true, user_metadata: { demo: true } });
+  if (error) throw error;
+  return { supabase, userId: data.user.id };
+}
+
+/** Recordings are private: pages read them through short-lived signed URLs. */
+async function ensureRecordingsBucket(supabase: Awaited<ReturnType<typeof ensureDemoUser>>["supabase"]) {
+  const options = { public: false, fileSizeLimit: 50 * 1024 * 1024 };
+  const { data } = await supabase.storage.getBucket("recordings");
+  const { error } = data ? await supabase.storage.updateBucket("recordings", options) : await supabase.storage.createBucket("recordings", options);
+  if (error) throw error;
 }
 
 async function main() {
   loadEnvFile(".env.local");
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is required to seed Supabase Postgres");
+  for (const key of ["DATABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) {
+    if (!process.env[key]) throw new Error(`${key} is required to seed`);
   }
 
+  const email = process.env.DEMO_USER_EMAIL ?? "demo@fathom8x.app";
+  const { supabase, userId } = await ensureDemoUser(email);
+  await ensureRecordingsBucket(supabase);
   const db = getDb();
 
-  const seedMeetingIds = seedMeetings.map((meeting) => meeting.id);
+  // Reset everything the demo user owns, including highlights and toggles visitors made.
+  const owned = await db.select({ id: schema.meetings.id }).from(schema.meetings).where(eq(schema.meetings.userId, userId));
+  const ids = [...new Set([...owned.map((row) => row.id), ...seedMeetings.map((meeting) => meeting.id)])];
 
-  await db.delete(schema.meetingAttendees).where(inArray(schema.meetingAttendees.meetingId, seedMeetingIds));
-  await db.delete(schema.highlights).where(inArray(schema.highlights.meetingId, seedMeetingIds));
-  await db.delete(schema.actionItems).where(inArray(schema.actionItems.meetingId, seedMeetingIds));
-  await db.delete(schema.summaries).where(inArray(schema.summaries.meetingId, seedMeetingIds));
-  await db.delete(schema.transcriptSegments).where(inArray(schema.transcriptSegments.meetingId, seedMeetingIds));
-  await db.delete(schema.chapters).where(inArray(schema.chapters.meetingId, seedMeetingIds));
-  await db.delete(schema.speakers).where(inArray(schema.speakers.meetingId, seedMeetingIds));
-  await db.delete(schema.meetings).where(inArray(schema.meetings.id, seedMeetingIds));
+  await db.transaction(async (tx) => {
+    await tx.update(schema.calendarEvents).set({ meetingId: null }).where(inArray(schema.calendarEvents.meetingId, ids));
+    await tx.delete(schema.actionItemMentions).where(inArray(schema.actionItemMentions.meetingId, ids));
+    await tx.delete(schema.meetingAttendees).where(inArray(schema.meetingAttendees.meetingId, ids));
+    await tx.delete(schema.highlights).where(inArray(schema.highlights.meetingId, ids));
+    await tx.delete(schema.actionItems).where(inArray(schema.actionItems.meetingId, ids));
+    await tx.delete(schema.summaries).where(inArray(schema.summaries.meetingId, ids));
+    await tx.delete(schema.transcriptSegments).where(inArray(schema.transcriptSegments.meetingId, ids));
+    await tx.delete(schema.chapters).where(inArray(schema.chapters.meetingId, ids));
+    await tx.delete(schema.speakers).where(inArray(schema.speakers.meetingId, ids));
+    await tx.delete(schema.meetings).where(inArray(schema.meetings.id, ids));
 
-  await db.insert(schema.meetings).values(seedMeetings.map((meeting) => ({
-    id: meeting.id,
-    title: meeting.title,
-    date: new Date(meeting.date),
-    durationSeconds: meeting.durationSeconds,
-    status: meeting.status,
-    videoUrl: meeting.videoUrl,
-    summaryTemplate: meeting.summaryTemplate,
-    shareToken: meeting.shareToken ?? null
-  })));
+    await tx.insert(schema.meetings).values(seedMeetings.map((meeting) => ({
+      id: meeting.id,
+      userId,
+      title: meeting.title,
+      date: new Date(meeting.date),
+      durationSeconds: meeting.durationSeconds,
+      status: meeting.status,
+      videoUrl: meeting.videoUrl,
+      summaryTemplate: meeting.summaryTemplate,
+      shareToken: meeting.shareToken ?? null
+    })));
+    await tx.insert(schema.speakers).values(seedMeetings.flatMap((meeting) => meeting.speakers));
+    await tx.insert(schema.chapters).values(seedMeetings.flatMap((meeting) => meeting.chapters));
+    await tx.insert(schema.transcriptSegments).values(seedMeetings.flatMap((meeting) => meeting.transcript.map((segment) => ({ ...segment, chapterId: segment.chapterId ?? null }))));
+    await tx.insert(schema.summaries).values(seedMeetings.flatMap((meeting) => meeting.summaries.map((summary) => ({ id: `${meeting.id}-${summary.template}`, meetingId: meeting.id, template: summary.template, contentJson: summary.content }))));
+    await tx.insert(schema.actionItems).values(seedMeetings.flatMap((meeting) => meeting.actionItems.map((item) => ({
+      id: item.id,
+      meetingId: item.meetingId,
+      text: item.text,
+      owner: item.owner,
+      dueDate: new Date(`${item.dueDate}T00:00:00.000Z`),
+      completed: item.completed,
+      sourceSegmentId: item.sourceSegmentId ?? null
+    }))));
+    await tx.insert(schema.highlights).values(seedMeetings.flatMap((meeting) => meeting.highlights));
+    await tx.insert(schema.actionItemMentions).values(seedMentions.map((mention) => ({ id: `${mention.actionId}@${mention.segmentId}`, actionItemId: mention.actionId, meetingId: mention.meetingId, segmentId: mention.segmentId })));
+    await tx.insert(schema.meetingAttendees).values(seedMeetings.flatMap((meeting) => meeting.speakers.map((speaker) => ({ meetingId: meeting.id, speakerId: speaker.id }))));
+  });
 
-  await db.insert(schema.speakers).values(seedMeetings.flatMap((meeting) => meeting.speakers.map((speaker) => ({
-    id: speaker.id,
-    meetingId: speaker.meetingId,
-    name: speaker.name,
-    avatarUrl: speaker.avatarUrl,
-    color: speaker.color
-  }))));
-
-  await db.insert(schema.chapters).values(seedMeetings.flatMap((meeting) => meeting.chapters.map((chapter) => ({
-    id: chapter.id,
-    meetingId: chapter.meetingId,
-    title: chapter.title,
-    startMs: chapter.startMs,
-    endMs: chapter.endMs,
-    order: chapter.order
-  }))));
-
-  await db.insert(schema.transcriptSegments).values(seedMeetings.flatMap((meeting) => meeting.transcript.map((segment) => ({
-    id: segment.id,
-    meetingId: segment.meetingId,
-    speakerId: segment.speakerId,
-    startMs: segment.startMs,
-    endMs: segment.endMs,
-    text: segment.text,
-    chapterId: segment.chapterId ?? null
-  }))));
-
-  await db.insert(schema.summaries).values(seedMeetings.flatMap((meeting) => meeting.summaries.map((summary) => ({
-    id: `${meeting.id}-${summary.template}`,
-    meetingId: meeting.id,
-    template: summary.template,
-    contentJson: summary.content
-  }))));
-
-  await db.insert(schema.actionItems).values(seedMeetings.flatMap((meeting) => meeting.actionItems.map((item) => ({
-    id: item.id,
-    meetingId: item.meetingId,
-    text: item.text,
-    owner: item.owner,
-    dueDate: new Date(`${item.dueDate}T00:00:00.000Z`),
-    completed: item.completed,
-    sourceSegmentId: item.sourceSegmentId ?? null
-  }))));
-
-  await db.insert(schema.highlights).values(seedMeetings.flatMap((meeting) => meeting.highlights.map((highlight) => ({
-    id: highlight.id,
-    meetingId: highlight.meetingId,
-    startMs: highlight.startMs,
-    endMs: highlight.endMs,
-    title: highlight.title,
-    shareToken: highlight.shareToken
-  }))));
-
-  await db.insert(schema.meetingAttendees).values(seedMeetings.flatMap((meeting) => meeting.speakers.map((speaker) => ({
-    meetingId: meeting.id,
-    speakerId: speaker.id
-  }))));
-
-  const counts = {
-    meetings: await db.select({ count: count() }).from(schema.meetings),
-    speakers: await db.select({ count: count() }).from(schema.speakers),
-    chapters: await db.select({ count: count() }).from(schema.chapters),
-    transcript_segments: await db.select({ count: count() }).from(schema.transcriptSegments),
-    summaries: await db.select({ count: count() }).from(schema.summaries),
-    action_items: await db.select({ count: count() }).from(schema.actionItems),
-    highlights: await db.select({ count: count() }).from(schema.highlights),
-    meeting_attendees: await db.select({ count: count() }).from(schema.meetingAttendees)
-  };
-
-  for (const [table, rows] of Object.entries(counts)) {
-    console.log(`${table}: ${rows[0]?.count ?? 0}`);
+  const tables = { meetings: schema.meetings, speakers: schema.speakers, chapters: schema.chapters, transcript_segments: schema.transcriptSegments, summaries: schema.summaries, action_items: schema.actionItems, highlights: schema.highlights, action_item_mentions: schema.actionItemMentions };
+  console.log(`demo user: ${email} (${userId})`);
+  for (const [name, table] of Object.entries(tables)) {
+    const [{ value }] = await db.select({ value: count() }).from(table);
+    console.log(`${name}: ${value}`);
   }
 }
 
@@ -128,10 +109,3 @@ main().then(() => process.exit(0)).catch((error) => {
   console.error(error);
   process.exit(1);
 });
-
-
-
-
-
-
-
