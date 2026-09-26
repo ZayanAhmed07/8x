@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { buildGoogleAuthUrl, googleOAuthConfig } from "@/lib/calendar";
+import { safeReturnPath } from "@/lib/auth/return-path";
 
 export async function GET(request: Request) {
   const user = await getCurrentUser();
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
     const url = buildGoogleAuthUrl(user.id, state);
     const store = await cookies();
     store.set("google_oauth_state", state, { httpOnly: true, sameSite: "lax", secure: requestUrl.protocol === "https:", maxAge: 600, path: "/" });
+    // Where to land afterwards, e.g. the desktop app's "you can go back" page.
+    store.set("google_oauth_return", safeReturnPath(requestUrl.searchParams.get("return"), "/settings"), { httpOnly: true, sameSite: "lax", secure: requestUrl.protocol === "https:", maxAge: 600, path: "/" });
     return requestUrl.searchParams.get("format") === "json" ? NextResponse.json({ url: url.toString() }, { headers: { "Cache-Control": "no-store" } }) : NextResponse.redirect(url);
   } catch {
     return NextResponse.json({ error: "Calendar connection is not configured yet. Please contact the site owner or upload a recording to get started." }, { status: 503 });

@@ -1,59 +1,56 @@
 {
-  "name": "fathom-desktop-agent",
-  "version": "0.1.1",
+  "name": "tally-capture",
+  "productName": "Tally Capture",
+  "version": "1.0.0",
   "private": true,
-  "main": "main.js",
-  "description": "Manual desktop capture agent for the Fathom workspace clone.",
-  "author": "Fathom Workspace Clone",
+  "description": "Records your mic and your computer's audio and sends them to your Tally workspace.",
+  "author": "Zayan Ahmed",
+  "main": "src/main.js",
+  "tally": {
+    "appUrl": "https://fathom8x.vercel.app"
+  },
   "scripts": {
     "start": "electron .",
+    "dev": "cross-env TALLY_APP_URL=http://localhost:3000 electron .",
+    "icons": "node scripts/make-icons.js",
     "dist": "electron-builder --win nsis",
     "pack": "electron-builder --dir"
   },
   "build": {
-    "appId": "dev.fathomclone.capture",
-    "productName": "Fathom Capture",
-    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "appId": "app.tally.capture",
+    "productName": "Tally Capture",
+    "artifactName": "Tally-Capture-Setup-${version}.${ext}",
     "files": [
-      "main.js",
-      "preload.js",
-      "recorder-window.html",
-      "recorder-window.js",
+      "src/**/*",
       "package.json"
     ],
     "directories": {
-      "output": "dist"
+      "output": "dist",
+      "buildResources": "build"
     },
     "protocols": [
       {
-        "name": "Fathom Capture Link",
-        "schemes": [
-          "fathom-clone"
-        ]
+        "name": "Tally Capture sign-in",
+        "schemes": ["tally-capture"]
       }
     ],
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.png",
       "requestedExecutionLevel": "asInvoker"
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Fathom Capture"
+      "shortcutName": "Tally Capture",
+      "runAfterFinish": true
     }
   },
   "devDependencies": {
-    "electron": "latest",
-    "electron-builder": "latest"
+    "cross-env": "^7.0.3",
+    "electron": "44.3.0",
+    "electron-builder": "26.15.3"
   }
 }
