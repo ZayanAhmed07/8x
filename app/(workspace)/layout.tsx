@@ -27,7 +27,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
       </div>
     </header>
     {viewer.isDemo && <div className="demo-banner" role="note">
-      <span>{user ? "You're viewing a sample team's workspace until your first recording lands." : "You're exploring a sample team's workspace. It's real data: tick things off, clip moments, share recaps."}</span>
+      <span>You&apos;re exploring a sample team&apos;s workspace. It&apos;s real data: tick things off, clip moments, share recaps.</span>
       {user ? <Link href="/upload">Upload a recording</Link> : <Link href="/sign-up">Start your own</Link>}
     </div>}
     <main>{children}</main>

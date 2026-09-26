@@ -121,7 +121,7 @@ function home() {
       h("label", { className: "field" }, "Microphone", micSelect),
       state.error && h("p", { className: "error", role: "alert" }, state.error),
       h("button", { className: "record-button", disabled: state.busy, onClick: () => startRecording({ title: state.title.trim() || upcoming?.title, calendarEventId: !state.title.trim() ? upcoming?.id : undefined }) }, h("i"), state.busy ? "Starting…" : "Start recording"),
-      h("p", { className: "hint" }, "Headphones give the cleanest transcript. Closing the window keeps Tally Capture in the tray.")),
+      h("p", { className: "hint" }, "Saves to ", h("strong", { className: "account-email" }, state.user?.email ?? "your workspace"), ". Headphones give the cleanest transcript.")),
 
     h("div", { className: "section-row" },
       h("h2", { className: "section-title" }, "Up next"),

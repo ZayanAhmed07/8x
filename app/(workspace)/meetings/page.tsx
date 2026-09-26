@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { Upload } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import { UpcomingMeetEvents } from "@/components/calendar/UpcomingMeetEvents";
 import { Avatar, AvatarStack } from "@/components/shell/Avatar";
 import { listCommitments, type Commitment } from "@/lib/db/commitments";
@@ -13,6 +13,8 @@ import type { Meeting } from "@/lib/types";
 import { getViewer } from "@/lib/viewer";
 
 export const metadata = { title: "Meetings" };
+
+const DOWNLOAD_URL = process.env.NEXT_PUBLIC_CAPTURE_DOWNLOAD_URL ?? "https://github.com/ZayanAhmed07/Tally/releases/latest/download/Tally-Capture-Setup.exe";
 
 function weekLabel(iso: string, now: Date) {
   const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((now.getUTCDay() + 6) % 7)));
@@ -77,7 +79,15 @@ export default async function MeetingsPage() {
 
     <div className="home">
       <div>
-        {meetings.length === 0 && <div className="empty"><h3>No meetings yet</h3><p>Upload a recording or record one with the desktop app.</p><div className="toolbar"><Link className="button primary" href="/upload">Upload a recording</Link></div></div>}
+        {meetings.length === 0 && <div className="empty">
+          <h3>Your first recap is one recording away</h3>
+          <p>Record a call with Tally Capture, or upload a recording you already have. Meetings for <strong>{viewer.user?.email}</strong> appear here.</p>
+          <div className="toolbar">
+            <a className="button primary" href={DOWNLOAD_URL}><Download size={15}/>Download Tally Capture</a>
+            <Link className="button" href="/upload"><Upload size={15}/>Upload a recording</Link>
+          </div>
+          <p className="faint" style={{ marginTop: 16, fontSize: 13 }}>Recorded something already? Check Tally Capture is signed in as the same email. Or <Link className="text-link" href="/share/q4-planning-review-recap">see what a finished recap looks like</Link>.</p>
+        </div>}
         {groupByWeek(meetings, now).map(([label, group]) => <section className="day-group" key={label} aria-label={label}>
           <h2>{label}</h2>
           <ul className="meeting-list">
