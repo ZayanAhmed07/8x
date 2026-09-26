@@ -1,27 +1,126 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
-import { listMeetings } from "@/lib/db/queries";
-import { getDb } from "@/lib/db/client";
-import { googleConnections } from "@/lib/db/schema";
-import { requireUser } from "@/lib/auth";
-import { listUpcomingCalendarEvents } from "@/lib/calendar";
+import { Upload } from "lucide-react";
 import { UpcomingMeetEvents } from "@/components/calendar/UpcomingMeetEvents";
-import { ConnectCalendarButton } from "@/components/calendar/ConnectCalendarButton";
-import { MeetingLibrary } from "@/components/meeting/MeetingLibrary";
-import { CalendarDays, CheckCircle2, Upload, ArrowRight, Video, Sparkles } from "lucide-react";
+import { Avatar, AvatarStack } from "@/components/shell/Avatar";
+import { listCommitments, type Commitment } from "@/lib/db/commitments";
+import { getDb } from "@/lib/db/client";
+import { listMeetings } from "@/lib/db/queries";
+import { googleConnections } from "@/lib/db/schema";
+import { listUpcomingCalendarEvents } from "@/lib/calendar";
+import { day, dueLabel, duration, isLate, time } from "@/lib/format";
+import type { Meeting } from "@/lib/types";
+import { getViewer } from "@/lib/viewer";
+
+export const metadata = { title: "Meetings" };
+
+function weekLabel(iso: string, now: Date) {
+  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - ((now.getUTCDay() + 6) % 7)));
+  const date = new Date(iso);
+  if (date >= monday) return "This week";
+  if (date >= new Date(monday.getTime() - 7 * 86_400_000)) return "Last week";
+  return "Earlier";
+}
+
+function groupByWeek(meetings: Meeting[], now: Date) {
+  const groups = new Map<string, Meeting[]>();
+  for (const meeting of meetings) {
+    const label = weekLabel(meeting.date, now);
+    groups.set(label, [...(groups.get(label) ?? []), meeting]);
+  }
+  return [...groups.entries()];
+}
+
+function owedByPerson(commitments: Commitment[], now: Date) {
+  const people = new Map<string, { open: number; late: number }>();
+  for (const item of commitments.filter((commitment) => !commitment.completed)) {
+    const entry = people.get(item.owner) ?? { open: 0, late: 0 };
+    entry.open += 1;
+    if (isLate(item.dueDate, false, now)) entry.late += 1;
+    people.set(item.owner, entry);
+  }
+  return [...people.entries()].sort((a, b) => b[1].late - a[1].late || b[1].open - a[1].open);
+}
+
+async function calendarState(userId: string) {
+  const [events, connections] = await Promise.all([
+    listUpcomingCalendarEvents(userId),
+    getDb().select({ lastSyncedAt: googleConnections.lastSyncedAt }).from(googleConnections).where(eq(googleConnections.userId, userId))
+  ]);
+  return { events, connected: connections.length > 0, lastSyncedAt: connections[0]?.lastSyncedAt ?? null };
+}
 
 export default async function MeetingsPage() {
-  const user = await requireUser();
-  const [meetings, events, connections] = await Promise.all([listMeetings(user.id), listUpcomingCalendarEvents(user.id), getDb().select({ lastSyncedAt: googleConnections.lastSyncedAt }).from(googleConnections).where(eq(googleConnections.userId, user.id))]);
-  const connected = connections.length > 0;
-  return <>
-    <div className="page-head"><div><p className="eyebrow">YOUR WORKSPACE</p><h1>My meetings</h1><p className="muted">Your upcoming calls, recordings, and follow-ups in one place.</p></div><Link className="button" href="/upload"><Upload size={17}/>Upload recording</Link></div>
-    <section className="setup-panel" aria-labelledby="setup-title"><div className="setup-heading"><div><span className="eyebrow">GET STARTED</span><h2 id="setup-title">{connected ? "You're connected. Capture your next conversation." : "Your first meeting starts here."}</h2><p className="muted">Follow these steps to turn a conversation into a recap.</p></div><span className={`badge ${connected ? "ready" : ""}`}>{connected ? "Calendar connected" : "Calendar not connected"}</span></div><div className="setup-steps">
-      <article className={connected ? "setup-step complete" : "setup-step current"}><span className="step-icon">{connected ? <CheckCircle2/> : <CalendarDays/>}</span><span className="feature-label">STEP 1</span><h3>Connect your calendar</h3><p>See Google Meet calls from your primary calendar. Calendar access is read-only.</p>{connected ? <Link href="/settings#calendar">Manage connection <ArrowRight size={14}/></Link> : <ConnectCalendarButton />}</article>
-      <article className="setup-step"><span className="step-icon"><Video/></span><span className="feature-label">STEP 2</span><h3>Record a conversation</h3><p>Join your call, open Fathom Capture, choose the meeting window, and press Record. Stop to upload.</p><Link href="/settings#recording">Set up recording <ArrowRight size={14}/></Link></article>
-      <article className="setup-step"><span className="step-icon"><Sparkles/></span><span className="feature-label">STEP 3</span><h3>Review and follow up</h3><p>Open a saved recording to review the recap, jump through the transcript, and track action items.</p><Link href={meetings.length ? "#recordings" : "/demo"}>{meetings.length ? "View your recordings" : "Explore a sample meeting"} <ArrowRight size={14}/></Link></article>
-    </div></section>
-    <UpcomingMeetEvents events={events} connected={connected} lastSyncedAt={connections[0]?.lastSyncedAt ?? null}/>
-    <MeetingLibrary meetings={meetings.map(meeting => ({ id: meeting.id, title: meeting.title, date: String(meeting.date), status: meeting.status, durationSeconds: meeting.durationSeconds, speakers: meeting.speakers.length, headline: meeting.summaries[0]?.content.headline ?? "Open the recording to review the transcript and recap." }))}/>
-  </>;
+  const viewer = await getViewer();
+  const now = new Date();
+  const [meetings, commitments, calendar] = await Promise.all([
+    listMeetings(viewer.workspaceUserId),
+    listCommitments(viewer.workspaceUserId),
+    viewer.user ? calendarState(viewer.user.id) : null
+  ]);
+  const colors = new Map(meetings.flatMap((meeting) => meeting.speakers.map((speaker) => [speaker.name, speaker.color] as const)));
+  const openByMeeting = new Map<string, number>();
+  for (const item of commitments) if (!item.completed) openByMeeting.set(item.meetingId, (openByMeeting.get(item.meetingId) ?? 0) + 1);
+  const owed = owedByPerson(commitments, now);
+  const late = commitments.filter((item) => isLate(item.dueDate, item.completed, now));
+
+  return <div className="page">
+    <div className="page-head">
+      <div>
+        <h1>Meetings</h1>
+        <p>{viewer.isDemo ? "A product team's last two weeks: planning, a customer call, a standup and an interview." : "Everything you've recorded, newest first."}</p>
+      </div>
+      {viewer.user && <Link className="button" href="/upload"><Upload size={16}/>Upload a recording</Link>}
+    </div>
+
+    {calendar && <UpcomingMeetEvents events={calendar.events} connected={calendar.connected} lastSyncedAt={calendar.lastSyncedAt}/>}
+
+    <div className="home">
+      <div>
+        {meetings.length === 0 && <div className="empty"><h3>No meetings yet</h3><p>Upload a recording or record one with the desktop app.</p><div className="toolbar"><Link className="button primary" href="/upload">Upload a recording</Link></div></div>}
+        {groupByWeek(meetings, now).map(([label, group]) => <section className="day-group" key={label} aria-label={label}>
+          <h2>{label}</h2>
+          <ul className="meeting-list">
+            {group.map((meeting) => {
+              const open = openByMeeting.get(meeting.id) ?? 0;
+              return <li key={meeting.id}>
+                <Link className="meeting-row" href={`/meetings/${meeting.id}`}>
+                  <div className="meeting-when"><strong>{day(meeting.date)}</strong><span className="faint mono">{time(meeting.date)}</span></div>
+                  <div>
+                    <div className="meeting-title">{meeting.title}</div>
+                    <p className="meeting-headline">{meeting.status === "processing" ? "Transcribing and writing the recap…" : meeting.summaries[0]?.content.headline ?? "Open to review the transcript."}</p>
+                    <div className="meeting-meta"><AvatarStack people={meeting.speakers}/><span>{meeting.speakers.length} people</span><span aria-hidden="true">·</span><span>{duration(meeting.durationSeconds)}</span></div>
+                  </div>
+                  <div className="meeting-side">
+                    {meeting.status === "processing" ? <span className="badge processing">Processing</span> : meeting.status === "failed" ? <span className="badge failed">Failed</span> : open > 0 ? <span className="badge">{open} open</span> : <span className="badge done">All done</span>}
+                  </div>
+                </Link>
+              </li>;
+            })}
+          </ul>
+        </section>)}
+      </div>
+
+      <aside>
+        {owed.length > 0 && <section className="aside-card" aria-labelledby="owed-title">
+          <header><h2 id="owed-title">Who owes what</h2><p>Open commitments across every meeting.</p></header>
+          <ul className="owed-list">
+            {owed.map(([name, count]) => <li key={name}><Link href={`/actions?owner=${encodeURIComponent(name)}`}>
+              <Avatar name={name} color={colors.get(name)}/><span>{name}</span>
+              <span className="owed-count">{count.late > 0 && <span className="badge late">{count.late} late</span>}<span className="badge">{count.open}</span></span>
+            </Link></li>)}
+          </ul>
+        </section>}
+        {late.length > 0 && <section className="aside-card" aria-labelledby="late-title">
+          <header><h2 id="late-title">Slipping</h2><p>Past due and still open.</p></header>
+          <ul className="late-list">
+            {late.slice(0, 4).map((item) => <li key={item.id}><Link href={`/meetings/${item.meetingId}?action=${item.id}`}>
+              <div className="late-text">{item.text}</div>
+              <div className="late-meta">{item.owner.split(" ")[0]} · {dueLabel(item.dueDate, false, now)}{item.mentions.length > 0 ? " · raised again" : ""}</div>
+            </Link></li>)}
+          </ul>
+        </section>}
+      </aside>
+    </div>
+  </div>;
 }

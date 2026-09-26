@@ -13,3 +13,4 @@ desktop-agent/recordings/
 *.tmp
 
 .artifacts/
+desktop-agent/.e2e/

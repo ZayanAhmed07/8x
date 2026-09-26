@@ -3,60 +3,70 @@ import { UploadCloud } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
-const MAX_UPLOAD_BYTES = 250 * 1024 * 1024;
-const ALLOWED = new Set(["webm", "mp4", "m4a", "mp3", "wav"]);
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+const ALLOWED = new Set(["webm", "mp4", "m4a", "mp3", "wav", "ogg"]);
 
-type State = "idle" | "uploading" | "processing" | "completed" | "failed";
+function validate(file: File | null) {
+  if (!file) return "Choose a recording.";
+  if (!ALLOWED.has(file.name.toLowerCase().split(".").pop() ?? "")) return "Use a .webm, .mp4, .m4a, .mp3, .ogg or .wav file.";
+  if (file.size === 0) return "That file is empty.";
+  if (file.size > MAX_UPLOAD_BYTES) return "Recordings must be 25 MB or smaller. An hour of audio usually fits; video often doesn't.";
+  return "";
+}
+
+/** Reads the media duration locally so the meeting shows its length while it processes. */
+function mediaDuration(file: File) {
+  return new Promise<number>((resolve) => {
+    const element = document.createElement("audio");
+    element.preload = "metadata";
+    element.onloadedmetadata = () => { resolve(Number.isFinite(element.duration) ? element.duration : 1); URL.revokeObjectURL(element.src); };
+    element.onerror = () => resolve(1);
+    element.src = URL.createObjectURL(file);
+  });
+}
 
 export function UploadMeetingForm() {
   const router = useRouter();
-  const [title, setTitle] = useState("Uploaded meeting");
+  const [title, setTitle] = useState("");
   const [file, setFile] = useState<File | null>(null);
-  const [state, setState] = useState<State>("idle");
+  const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [failed, setFailed] = useState(false);
 
-  const validate = (candidate: File | null) => {
-    if (!candidate) return "Choose a recording file.";
-    const extension = candidate.name.toLowerCase().split(".").pop() ?? "";
-    if (!ALLOWED.has(extension)) return "Use a .webm, .mp4, .m4a, .mp3, or .wav file.";
-    if (candidate.size > MAX_UPLOAD_BYTES) return "Recording must be 250MB or smaller.";
-    if (candidate.size === 0) return "Recording file is empty.";
-    return "";
-  };
+  const fail = (text: string) => { setFailed(true); setMessage(text); setBusy(false); };
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    const validation = validate(file);
-    if (validation) {
-      setState("failed");
-      setMessage(validation);
-      return;
-    }
+    const problem = validate(file);
+    if (problem || !file) return fail(problem);
+    setBusy(true);
+    setFailed(false);
+    const name = title.trim() || file.name.replace(/\.[^.]+$/, "");
 
-    setState("uploading");
-    setMessage("Uploading recording to storage.");
-    const form = new FormData();
-    form.append("recording", file as File);
-    form.append("title", title);
+    setMessage("Preparing upload…");
+    const prepare = await fetch("/api/meetings/record", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, size: file.size }) }).catch(() => null);
+    const prepared = await prepare?.json().catch(() => null);
+    if (!prepare?.ok) return fail(prepared?.error ?? "Couldn't start the upload.");
 
-    setState("processing");
-    setMessage("Processing transcript and meeting workspace.");
-    const response = await fetch("/api/meetings/record", { method: "POST", body: form });
-    const data = await response.json().catch(() => ({}));
+    setMessage("Uploading…");
+    const put = await fetch(prepared.signedUrl, { method: "PUT", headers: { "Content-Type": file.type || "application/octet-stream", "x-upsert": "false" }, body: file }).catch(() => null);
+    if (!put?.ok) return fail("The upload was interrupted. Try again.");
 
-    if (!response.ok) {
-      setState("failed");
-      setMessage(data.error ?? "Upload failed. Please retry.");
-      return;
-    }
+    const finalize = await fetch(`/api/meetings/record/${prepared.meetingId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: name, contentType: file.type, durationSeconds: await mediaDuration(file) }) }).catch(() => null);
+    const finished = await finalize?.json().catch(() => null);
+    if (!finalize?.ok) return fail(finished?.error ?? "Couldn't create the meeting.");
 
-    setState("completed");
-    setMessage("Meeting workspace ready. Redirecting...");
-    router.push(`/meetings/${data.meetingId}`);
-    router.refresh();
+    setMessage("Uploaded. Transcribing now…");
+    router.push(`/meetings/${prepared.meetingId}`);
   };
 
-  const busy = state === "uploading" || state === "processing";
-
-  return <section className="card"><UploadCloud size={34}/><h2>Upload a meeting recording</h2><p className="muted">Turn a recording into a searchable meeting workspace.</p><form className="grid" onSubmit={submit}><label>Meeting title<input className="input" value={title} onChange={(event) => setTitle(event.target.value)} disabled={busy}/></label><label>Recording file<input className="input" type="file" accept=".webm,.mp4,.m4a,.mp3,.wav,video/webm,video/mp4,audio/mp4,audio/mpeg,audio/wav" onChange={(event) => { const next = event.target.files?.[0] ?? null; setFile(next); setState("idle"); setMessage(validate(next)); }} disabled={busy}/></label><button className="button primary" disabled={busy}>{busy ? "Working" : "Upload recording"}</button></form>{message && <p><span className={`badge ${state === "failed" ? "failed" : state === "completed" ? "ready" : "processing"}`}>{state}</span> <span className="muted">{message}</span></p>}{state === "failed" && <button className="button" onClick={() => { setState("idle"); setMessage(""); }}>Retry</button>}</section>;
+  return <section className="card" style={{ padding: 24 }}>
+    <form className="grid" onSubmit={submit}>
+      <label>Recording<input className="input" type="file" accept=".webm,.mp4,.m4a,.mp3,.wav,.ogg,audio/*,video/webm,video/mp4" onChange={(event) => { const next = event.target.files?.[0] ?? null; setFile(next); setFailed(false); setMessage(validate(next)); }} disabled={busy}/></label>
+      <label>Title<input className="input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder={file?.name.replace(/\.[^.]+$/, "") ?? "Weekly sync"} disabled={busy}/></label>
+      <button className="button primary" disabled={busy || !file} style={{ minHeight: 42 }}><UploadCloud size={16}/>{busy ? "Working…" : "Upload and transcribe"}</button>
+    </form>
+    {message && <p className={failed ? "form-message" : "muted"} role="status" style={{ marginTop: 14, color: failed ? "var(--late)" : undefined }}>{message}</p>}
+    <p className="faint" style={{ marginTop: 14, fontSize: 13 }}>For live meetings, <a className="text-link" href="/settings#recording">Tally Capture</a> records your mic and the call separately, so the transcript knows who said what.</p>
+  </section>;
 }
